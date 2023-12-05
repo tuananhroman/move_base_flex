@@ -1,0 +1,32 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${default}"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "c17",
+            "cppStandard": "gnu++14",
+            "intelliSenseMode": "linux-gcc-x64"
+        },
+        {
+            "name": "ros",
+            "includePath": [
+                "/home/vova/Documents/Development/reproduce/devel/include",
+                "/opt/ros/noetic/include",
+                "${workspaceFolder}/core/core/mbf_costmap_core/include",
+                "${workspaceFolder}/core/core/mbf_abstract_core/include",
+                "${workspaceFolder}/core/nav/mbf_abstract_nav/include",
+                "${workspaceFolder}/planners/inter/bypass_inter/include"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "c17",
+            "cppStandard": "gnu++14",
+            "intelliSenseMode": "linux-gcc-x64"
+        }
+    ],
+    "version": 4
+}
