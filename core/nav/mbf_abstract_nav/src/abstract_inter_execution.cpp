@@ -212,7 +212,7 @@ bool AbstractInterExecution::cancel()
   // returns false if cancel is not implemented or rejected by the inter (will run until completion)
   if (!inter_->cancel())
   {
-    ROS_WARN_STREAM("Cancel planning failed or is not supported by the plugin. "
+    ROS_INFO_STREAM("Cancel planning failed or is not supported by the plugin. "
         << "Wait until the current planning finished!");
 
     return false;

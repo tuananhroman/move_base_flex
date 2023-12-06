@@ -93,7 +93,7 @@ bool AbstractRecoveryExecution::cancel()
   // returns false if cancel is not implemented or rejected by the recovery behavior (will run until completion)
   if (!behavior_->cancel())
   {
-    ROS_WARN_STREAM("Cancel recovery behavior \"" << name_ << "\" failed or is not supported by the plugin. "
+    ROS_INFO_STREAM("Cancel recovery behavior \"" << name_ << "\" failed or is not supported by the plugin. "
                         << "Wait until the current recovery behavior finished!");
     return false;
   }

@@ -81,8 +81,6 @@ MoveBaseAction::~MoveBaseAction()
 void MoveBaseAction::reconfigure(
     mbf_abstract_nav::MoveBaseFlexConfig &config, uint32_t level)
 {
-  //config.planner_frequency = 5.0; //TEMP
-  ROS_WARN("PLANNER FREQUENCY IS %f", config.planner_frequency);
   if (config.planner_frequency > 0.0)
     replanning_period_.fromSec(1.0 / config.planner_frequency);
   else

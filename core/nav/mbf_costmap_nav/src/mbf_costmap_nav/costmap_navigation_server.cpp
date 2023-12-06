@@ -513,7 +513,6 @@ void CostmapNavigationServer::reconfigure(mbf_costmap_nav::MoveBaseFlexConfig& c
 
   // fill the abstract configuration common to all MBF-based navigation
   mbf_abstract_nav::MoveBaseFlexConfig abstract_config;
-  ROS_WARN("PLANNER FREQUENCY IS %f", config.planner_frequency);
   abstract_config.planner_frequency = config.planner_frequency;
   abstract_config.planner_patience = config.planner_patience;
   abstract_config.planner_max_retries = config.planner_max_retries;
