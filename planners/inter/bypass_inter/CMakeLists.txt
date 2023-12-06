@@ -5,6 +5,10 @@ find_package(catkin REQUIRED COMPONENTS
   mbf_costmap_core
 )
 
+# generate_dynamic_reconfigure_options(
+#   cfg/BypassInter.cfg
+# )
+
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES bypass_inter
@@ -21,7 +25,10 @@ include_directories(
 )
 
 add_library(bypass_inter src/bypass_inter.cpp)
+
 add_dependencies(bypass_inter ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+# add_dependencies(bypass_inter ${PROJECT_NAME}_gencfg)
+
 target_link_libraries(bypass_inter
   ${catkin_LIBRARIES}
 )
