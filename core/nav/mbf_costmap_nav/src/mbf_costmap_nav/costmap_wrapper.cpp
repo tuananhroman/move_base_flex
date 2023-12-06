@@ -60,6 +60,7 @@ CostmapWrapper::CostmapWrapper(const std::string &name, const TFPtr &tf_listener
   else
     // otherwise costmap_users_ is at least 1, as costmap is always active
     ++costmap_users_;
+
 }
 
 CostmapWrapper::~CostmapWrapper()

@@ -80,6 +80,8 @@ uint32_t CostmapInterExecution::makePlan(const geometry_msgs::PoseStamped &start
   // "implicit" requirement for most inters
   // note: costmap_2d::Costmap2DROS::getTransformTolerance might be a good idea,
   // but it's not part of the class API in ros-kinetic
+  return 0;
+
   const ros::Duration timeout(0.5);
   const std::string frame = global_costmap_ptr_->getGlobalFrameID();
   geometry_msgs::PoseStamped g_start, g_goal;

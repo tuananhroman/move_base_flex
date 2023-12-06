@@ -84,11 +84,13 @@ uint32_t CostmapPlannerExecution::makePlan(const geometry_msgs::PoseStamped &sta
   const std::string frame = costmap_ptr_->getGlobalFrameID();
   geometry_msgs::PoseStamped g_start, g_goal;
 
+
   if (!mbf_utility::transformPose(robot_info_.getTransformListener(), frame, timeout, start, g_start))
     return mbf_msgs::GetPathResult::TF_ERROR;
 
   if (!mbf_utility::transformPose(robot_info_.getTransformListener(), frame, timeout, goal, g_goal))
     return mbf_msgs::GetPathResult::TF_ERROR;
+
 
   if (lock_costmap_)
   {

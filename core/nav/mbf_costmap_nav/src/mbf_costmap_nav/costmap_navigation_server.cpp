@@ -167,6 +167,8 @@ CostmapNavigationServer::CostmapNavigationServer(const TFPtr& tf_listener_ptr)
   , nav_core_planner_plugin_loader_("nav_core", "nav_core::BaseGlobalPlanner")
   , global_costmap_ptr_(new CostmapWrapper("global_costmap", tf_listener_ptr_))
   , local_costmap_ptr_(new CostmapWrapper("local_costmap", tf_listener_ptr_))
+  , iglobal_costmap_ptr_(new CostmapWrapper("Qglobal_costmap", tf_listener_ptr_))
+  , ilocal_costmap_ptr_(new CostmapWrapper("Qlocal_costmap", tf_listener_ptr_))
   , setup_reconfigure_(false)
 {
   // advertise services and current goal topic
@@ -187,7 +189,7 @@ CostmapNavigationServer::CostmapNavigationServer(const TFPtr& tf_listener_ptr)
 
   // Load the optional mapping from planner/controller name to the costmap.
   planner_name_to_costmap_ptr_ = loadStringToMaps("planners", private_nh_, global_costmap_ptr_, local_costmap_ptr_);
-  inter_name_to_costmap_ptr_ = loadStringToMaps("inters", private_nh_, global_costmap_ptr_, local_costmap_ptr_);
+  inter_name_to_costmap_ptr_ = loadStringToMaps("inters", private_nh_, iglobal_costmap_ptr_, ilocal_costmap_ptr_);
   controller_name_to_costmap_ptr_ = loadStringToMaps("controllers", private_nh_, global_costmap_ptr_, local_costmap_ptr_);
 
   // initialize all plugins
@@ -235,12 +237,10 @@ mbf_abstract_nav::AbstractPlannerExecution::Ptr CostmapNavigationServer::newPlan
 mbf_abstract_nav::AbstractInterExecution::Ptr CostmapNavigationServer::newInterExecution(
     const std::string& plugin_name, const mbf_abstract_core::AbstractInter::Ptr& plugin_ptr)
 {
-  const CostmapWrapper::Ptr& global_costmap_ptr =
-      findWithDefault(planner_name_to_costmap_ptr_, plugin_name, global_costmap_ptr_);
-  const CostmapWrapper::Ptr& local_costmap_ptr =
-      findWithDefault(controller_name_to_costmap_ptr_, plugin_name, local_costmap_ptr_);
+  const CostmapWrapper::Ptr& global_costmap = iglobal_costmap_ptr_;
+  const CostmapWrapper::Ptr& local_costmap = ilocal_costmap_ptr_;
   return boost::make_shared<mbf_costmap_nav::CostmapInterExecution>(
-      plugin_name, boost::static_pointer_cast<mbf_costmap_core::CostmapInter>(plugin_ptr), robot_info_, goal_pub_, global_costmap_ptr, local_costmap_ptr,
+      plugin_name, boost::static_pointer_cast<mbf_costmap_core::CostmapInter>(plugin_ptr), robot_info_, goal_pub_, global_costmap, local_costmap,
       last_config_);
 }
 
