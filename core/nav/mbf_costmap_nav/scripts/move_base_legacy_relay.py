@@ -25,16 +25,17 @@ calls (note that some parameters have changed names; see http://wiki.ros.org/mov
 
 # keep configured base local and global planners to send to MBF
 bgp = None
+bip = None
 blp = None
 
 
 def simple_goal_cb(msg):
-    mbf_mb_ac.send_goal(mbf_msgs.MoveBaseGoal(target_pose=msg, planner=bgp, controller=blp))
+    mbf_mb_ac.send_goal(mbf_msgs.MoveBaseGoal(target_pose=msg, planner=bgp, controller=blp, inter=bip))
     rospy.logdebug("Relaying move_base_simple/goal pose to mbf")
 
 
 def mb_execute_cb(msg):
-    mbf_mb_ac.send_goal(mbf_msgs.MoveBaseGoal(target_pose=msg.target_pose, planner=bgp, controller=blp),
+    mbf_mb_ac.send_goal(mbf_msgs.MoveBaseGoal(target_pose=msg.target_pose, planner=bgp, controller=blp, inter=bip),
                         feedback_cb=mbf_feedback_cb)
     rospy.logdebug("Relaying legacy move_base goal to mbf")
     mbf_mb_ac.wait_for_result()
@@ -100,6 +101,15 @@ def mb_reconf_cb(config, level):
         mbf_config['planner_patience'] = mbf_config.pop('planner_patience')
     if 'max_planning_retries' in mbf_config:
         mbf_config['planner_max_retries'] = mbf_config.pop('max_planning_retries')
+    if 'base_intermediate_planner' in mbf_config:
+        global bip
+        bip = mbf_config.pop('base_intermediate_planner')
+    if 'inter_frequency' in mbf_config:
+        mbf_config['inter_frequency'] = mbf_config.pop('inter_frequency')
+    if 'inter_patience' in mbf_config:
+        mbf_config['inter_patience'] = mbf_config.pop('inter_patience')
+    if 'max_inter_retries' in mbf_config:
+        mbf_config['inter_max_retries'] = mbf_config.pop('max_inter_retries')
     if 'recovery_behavior_enabled' in mbf_config:
         mbf_config['recovery_enabled'] = mbf_config.pop('recovery_behavior_enabled')
     if 'conservative_reset_dist' in mbf_config:
