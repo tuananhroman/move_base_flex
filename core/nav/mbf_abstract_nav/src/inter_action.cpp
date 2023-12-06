@@ -52,11 +52,13 @@ InterAction::InterAction(
 {
   ros::NodeHandle private_nh("~");
   // informative topics: current navigation goal
-  current_goal_pub_ = private_nh.advertise<geometry_msgs::PoseStamped>("current_goal", 1);
+  current_goal_pub_ = private_nh.advertise<geometry_msgs::PoseStamped>("current_subgoal", 1);
+  ROS_WARN("WWW 1");
 }
 
 void InterAction::runImpl(GoalHandle &goal_handle, AbstractInterExecution &execution)
 {
+  ROS_WARN("WWW 2");
   const mbf_msgs::GetInterPathGoal& goal = *(goal_handle.getGoal().get());
 
   mbf_msgs::GetInterPathResult result;
@@ -101,8 +103,11 @@ void InterAction::runImpl(GoalHandle &goal_handle, AbstractInterExecution &execu
 
   while (inter_active && ros::ok())
   {
+    
     // get the current state of the inter_planning thread
     state_inter_planning_input = execution.getState();
+
+    ROS_WARN("WWW 3   %d", state_inter_planning_input);
 
     switch (state_inter_planning_input)
     {

@@ -245,8 +245,11 @@ namespace mbf_abstract_nav
     //! mutex to handle safe thread communication for the plan and plan-costs
     mutable boost::mutex plan_mtx_;
 
-    //! mutex to handle safe thread communication for the goal and start poses and the global plan (all inputs).
-    mutable boost::mutex goal_start_plan_mtx_;
+    //! mutex to handle safe thread communication for the global plan.
+    mutable boost::mutex global_plan_mtx_;
+
+    //! mutex to handle safe thread communication for the goal and start poses.
+    mutable boost::mutex goal_start_mtx_;
 
     //! mutex to handle safe thread communication for the interpolating_ flag.
     mutable boost::mutex interpolating_mtx_;

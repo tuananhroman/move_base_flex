@@ -167,8 +167,8 @@ CostmapNavigationServer::CostmapNavigationServer(const TFPtr& tf_listener_ptr)
   , nav_core_planner_plugin_loader_("nav_core", "nav_core::BaseGlobalPlanner")
   , global_costmap_ptr_(new CostmapWrapper("global_costmap", tf_listener_ptr_))
   , local_costmap_ptr_(new CostmapWrapper("local_costmap", tf_listener_ptr_))
-  , iglobal_costmap_ptr_(new CostmapWrapper("Qglobal_costmap", tf_listener_ptr_))
-  , ilocal_costmap_ptr_(new CostmapWrapper("Qlocal_costmap", tf_listener_ptr_))
+  , iglobal_costmap_ptr_(new CostmapWrapper("global_costmap", tf_listener_ptr_))
+  , ilocal_costmap_ptr_(new CostmapWrapper("local_costmap", tf_listener_ptr_))
   , setup_reconfigure_(false)
 {
   // advertise services and current goal topic
@@ -237,8 +237,8 @@ mbf_abstract_nav::AbstractPlannerExecution::Ptr CostmapNavigationServer::newPlan
 mbf_abstract_nav::AbstractInterExecution::Ptr CostmapNavigationServer::newInterExecution(
     const std::string& plugin_name, const mbf_abstract_core::AbstractInter::Ptr& plugin_ptr)
 {
-  const CostmapWrapper::Ptr& global_costmap = iglobal_costmap_ptr_;
-  const CostmapWrapper::Ptr& local_costmap = ilocal_costmap_ptr_;
+  const CostmapWrapper::Ptr& global_costmap = global_costmap_ptr_;
+  const CostmapWrapper::Ptr& local_costmap = local_costmap_ptr_;
   return boost::make_shared<mbf_costmap_nav::CostmapInterExecution>(
       plugin_name, boost::static_pointer_cast<mbf_costmap_core::CostmapInter>(plugin_ptr), robot_info_, goal_pub_, global_costmap, local_costmap,
       last_config_);
@@ -513,6 +513,7 @@ void CostmapNavigationServer::reconfigure(mbf_costmap_nav::MoveBaseFlexConfig& c
 
   // fill the abstract configuration common to all MBF-based navigation
   mbf_abstract_nav::MoveBaseFlexConfig abstract_config;
+  ROS_WARN("PLANNER FREQUENCY IS %f", config.planner_frequency);
   abstract_config.planner_frequency = config.planner_frequency;
   abstract_config.planner_patience = config.planner_patience;
   abstract_config.planner_max_retries = config.planner_max_retries;

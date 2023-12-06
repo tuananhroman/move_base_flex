@@ -158,7 +158,7 @@ std::vector<geometry_msgs::PoseStamped> AbstractInterExecution::getPlan() const
 
 void AbstractInterExecution::setNewGoal(const geometry_msgs::PoseStamped &goal)
 {
-  boost::lock_guard<boost::mutex> guard(goal_start_plan_mtx_);
+  boost::lock_guard<boost::mutex> guard(goal_start_mtx_);
   goal_ = goal;
   has_new_goal_ = true;
 }
@@ -166,7 +166,7 @@ void AbstractInterExecution::setNewGoal(const geometry_msgs::PoseStamped &goal)
 
 void AbstractInterExecution::setNewStart(const geometry_msgs::PoseStamped &start)
 {
-  boost::lock_guard<boost::mutex> guard(goal_start_plan_mtx_);
+  boost::lock_guard<boost::mutex> guard(goal_start_mtx_);
   start_ = start;
   has_new_start_ = true;
 }
@@ -175,7 +175,7 @@ void AbstractInterExecution::setNewStart(const geometry_msgs::PoseStamped &start
 void AbstractInterExecution::setNewStartAndGoal(const geometry_msgs::PoseStamped &start,
                                                   const geometry_msgs::PoseStamped &goal)
 {
-  boost::lock_guard<boost::mutex> guard(goal_start_plan_mtx_);
+  boost::lock_guard<boost::mutex> guard(goal_start_mtx_);
   start_ = start;
   goal_ = goal;
   has_new_start_ = true;
@@ -186,6 +186,7 @@ void AbstractInterExecution::setNewStartAndGoal(const geometry_msgs::PoseStamped
 bool AbstractInterExecution::start(const geometry_msgs::PoseStamped &start,
                                      const geometry_msgs::PoseStamped &goal)
 {
+  ROS_WARN("WWW 99 start");
   if (interpolating_)
   {
     return false;
@@ -253,12 +254,14 @@ void AbstractInterExecution::run()
   {
     while (interpolating_ && ros::ok())
     {
+      ROS_WARN("WWW 99 iter");
       // call the inter
       std::vector<geometry_msgs::PoseStamped> global_plan;
       double cost = 0.0;
 
       // lock goal start mutex
-      goal_start_plan_mtx_.lock();
+      goal_start_mtx_.lock();
+      ROS_WARN("WWW 99 1");
       if (has_new_start_)
       {
         has_new_start_ = false;
@@ -267,6 +270,7 @@ void AbstractInterExecution::run()
         const geometry_msgs::Point& s = start_.pose.position;
         ROS_INFO_STREAM("New planning start pose: (" << s.x << ", " << s.y << ", " << s.z << ")");
       }
+      ROS_WARN("WWW 99 2");
       if (has_new_goal_)
       {
         has_new_goal_ = false;
@@ -275,11 +279,17 @@ void AbstractInterExecution::run()
         const geometry_msgs::Point& g = goal_.pose.position;
         ROS_INFO_STREAM("New goal pose: (" << g.x << ", " << g.y << ", " << g.z << ")");
       }
+      ROS_WARN("WWW 99 3");
+
+      // unlock goal
+      goal_start_mtx_.unlock();
+
       // update plan dynamically
       if (hasNewPlan())
       {
+        ROS_WARN("WWW 99 3.0");
         global_plan = getNewPlan();
-
+        ROS_WARN("WWW 99 3.1");
         // check if plan is empty
         if (global_plan.empty())
         {
@@ -289,6 +299,8 @@ void AbstractInterExecution::run()
           return;
         }
 
+        ROS_WARN("WWW 99 3.2");
+
         // check if plan could be set
         if (!inter_->setPlan(global_plan))
         {
@@ -297,12 +309,12 @@ void AbstractInterExecution::run()
           condition_.notify_all();
           return;
         }
-        global_goal_pub_.publish(plan.back());
+
+        ROS_WARN("WWW 99 3.3");
+        global_goal_pub_.publish(global_plan.back());
       }
 
-
-      // unlock goal
-      goal_start_plan_mtx_.unlock();
+      ROS_WARN("WWW 99 4");
       if (cancel_)
       {
         ROS_INFO_STREAM("The inter has been canceled!");
@@ -312,6 +324,7 @@ void AbstractInterExecution::run()
       {
         setState(PLANNING, false);
 
+        ROS_WARN("WWW 99 makePlan");
         outcome_ = makePlan(current_start, current_goal, plan, cost, message_);
         bool success = outcome_ < 10;
 
@@ -365,12 +378,14 @@ void AbstractInterExecution::run()
   }
   catch (const boost::thread_interrupted &ex)
   {
+    ROS_WARN("WWW 99 interrupted");
     // Inter thread interrupted; probably we have exceeded inter patience
     ROS_WARN_STREAM("Inter thread interrupted!");
     setState(STOPPED, true);
   }
   catch (...)
   {
+    ROS_WARN("WWW 99 generic error");
     ROS_ERROR_STREAM("Unknown error occurred: " << boost::current_exception_diagnostic_information());
     setState(INTERNAL_ERROR, true);
   }
@@ -378,7 +393,7 @@ void AbstractInterExecution::run()
 
 std::vector<geometry_msgs::PoseStamped> AbstractInterExecution::getNewPlan()
 {
-  boost::lock_guard<boost::mutex> guard(goal_start_plan_mtx_);
+  boost::lock_guard<boost::mutex> guard(global_plan_mtx_);
   new_plan_ = false;
   return global_plan_;
 }
@@ -391,7 +406,7 @@ void AbstractInterExecution::setNewPlan(
     // This is fine on continuous replanning
     ROS_DEBUG("Setting new plan while interpolating");
   }
-  boost::lock_guard<boost::mutex> guard(goal_start_plan_mtx_);
+  boost::lock_guard<boost::mutex> guard(global_plan_mtx_);
   new_plan_ = true;
 
   global_plan_ = plan;
@@ -399,7 +414,7 @@ void AbstractInterExecution::setNewPlan(
 
 bool AbstractInterExecution::hasNewPlan()
 {
-  boost::lock_guard<boost::mutex> guard(plan_mtx_);
+  boost::lock_guard<boost::mutex> guard(global_plan_mtx_);
   return new_plan_;
 }
 

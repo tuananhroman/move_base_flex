@@ -81,6 +81,8 @@ MoveBaseAction::~MoveBaseAction()
 void MoveBaseAction::reconfigure(
     mbf_abstract_nav::MoveBaseFlexConfig &config, uint32_t level)
 {
+  //config.planner_frequency = 5.0; //TEMP
+  ROS_WARN("PLANNER FREQUENCY IS %f", config.planner_frequency);
   if (config.planner_frequency > 0.0)
     replanning_period_.fromSec(1.0 / config.planner_frequency);
   else
@@ -626,7 +628,8 @@ void MoveBaseAction::actionRecoveryDone(
 bool MoveBaseAction::replanningActive() const
 {
   // replan only while following a path and if replanning is enabled (can be disabled by dynamic reconfigure)
-  return !replanning_period_.isZero() && action_state_ == EXE_PATH && dist_to_goal_ > 0.1;
+  ROS_WARN("replanning %d = !%d && (%d == %d || %d == %d) && %f > 0.1",  !replanning_period_.isZero() && (action_state_ == GET_INTER_PATH || action_state_ == EXE_PATH) && dist_to_goal_ > 0.1, replanning_period_.isZero(), action_state_, GET_INTER_PATH, action_state_, EXE_PATH, dist_to_goal_);
+  return !replanning_period_.isZero() && (action_state_ == GET_INTER_PATH || action_state_ == EXE_PATH) && dist_to_goal_ > 0.1;
 }
 
 void MoveBaseAction::replanningThread()
@@ -635,70 +638,127 @@ void MoveBaseAction::replanningThread()
   ros::Time last_replan_time(0.0);
   actionlib::SimpleClientGoalState state = actionlib::SimpleClientGoalState::PENDING;
 
+  uint8_t sm = 0;
+
   while (ros::ok() && !replanning_thread_shutdown_){
-    if (action_client_get_path_.getState().isDone()){
-      if (!replanningActive())
-      {
-        update_period.sleep();
+    switch(sm){
+      case 0:{
+
+        ROS_ERROR("1");
+
+        if (!replanningActive())
+        {
+          ROS_ERROR("1.6");
+          update_period.sleep();
+          continue;
+        }
+        else if (ros::Time::now() - last_replan_time >= replanning_period_)
+        {
+          ROS_ERROR("1.7");
+          ROS_DEBUG_STREAM_NAMED("move_base", "Next replanning cycle, using the \"get_path\" action!");
+          action_client_get_path_.sendGoal(get_path_goal_);
+          action_state_ = GET_PATH;
+          last_replan_time = ros::Time::now();
+          sm++;
+        }
+        else
+          continue;
+
       }
-      else if (ros::Time::now() - last_replan_time >= replanning_period_)
-      {
-        ROS_DEBUG_STREAM_NAMED("move_base", "Next replanning cycle, using the \"get_path\" action!");
-        action_client_get_path_.sendGoal(get_path_goal_);
-        last_replan_time = ros::Time::now();
+
+      case 1:{
+
+        ROS_ERROR("2");
+
+        if (action_client_get_path_.getState().isDone()){
+          sm = 0;
+          continue;
+        }
+
+        if(!action_client_get_path_.waitForResult(update_period)){
+          // keep waiting for planning to complete (we already waited update_period in waitForResult)
+          continue;
+        }
+
+        ROS_ERROR("3");
+
+        state = action_client_get_path_.getState();
+        mbf_msgs::GetPathResultConstPtr planner_result = action_client_get_path_.getResult();
+
+        ROS_ERROR("4 %d", planner_result->outcome);
+
+        if (!(state == actionlib::SimpleClientGoalState::SUCCEEDED && replanningActive())){
+          ROS_DEBUG_STREAM_NAMED("move_base", "Replanning failed with error code " << planner_result->outcome << ": " << planner_result->message);
+          sm = 0;
+          continue;
+        }
+
+        ROS_ERROR("5");
+
+        ROS_DEBUG_STREAM_NAMED("move_base", "Replanning succeeded; sending a goal to \"get_inter_path\" with the new plan");
+
+        get_inter_path_goal_.start_pose = get_path_goal_.start_pose;
+        get_inter_path_goal_.target_pose = get_path_goal_.target_pose;
+        get_inter_path_goal_.use_start_pose = get_path_goal_.use_start_pose;
+        get_inter_path_goal_.path = planner_result->path;
+
+        mbf_msgs::GetInterPathGoal get_inter_path_goal(get_inter_path_goal_);
+        action_client_get_inter_path_.sendGoal(get_inter_path_goal);
+        action_state_ = GET_INTER_PATH;
+
+        ROS_ERROR("6");
+
+        sm++;
       }
-      continue;
+
+      case 2:{
+
+        ROS_ERROR("7");
+
+        if (action_client_get_inter_path_.getState().isDone()){
+          sm = 0;
+          continue;
+        }
+
+        ROS_ERROR("8 %d", action_client_get_inter_path_.getState().state_);
+          
+        if (!(action_client_get_inter_path_.waitForResult(update_period))){
+          // keep waiting for interpolating to complete (we already waited update_period in waitForResult)
+          continue;
+        }
+
+        ROS_ERROR("9");
+
+        state = action_client_get_inter_path_.getState();
+        mbf_msgs::GetInterPathResultConstPtr inter_result = action_client_get_inter_path_.getResult();
+          
+        if (!(state == actionlib::SimpleClientGoalState::SUCCEEDED && replanningActive())){
+          ROS_DEBUG_STREAM_NAMED("move_base", "Reinterpolating failed with error code " << inter_result->outcome << ": " << inter_result->message);
+          sm = 0;
+          continue;
+        }
+
+        ROS_ERROR("10");
+        ROS_DEBUG_STREAM_NAMED("move_base", "Reinterpolating succeeded; sending a goal to \"exe_path\" with the new plan");
+
+        exe_path_goal_.path = inter_result->path;
+
+        mbf_msgs::ExePathGoal exe_goal(exe_path_goal_);
+        action_client_exe_path_.sendGoal(exe_goal,
+          boost::bind(&MoveBaseAction::actionExePathDone, this, _1, _2),
+          boost::bind(&MoveBaseAction::actionExePathActive, this),
+          boost::bind(&MoveBaseAction::actionExePathFeedback, this, _1)
+        );
+        action_state_ = EXE_PATH;
+
+        sm++;
+      }
+
+      case 3:{
+        ROS_ERROR("11");
+        sm = 0;
+      } break;
     }
-
-    if(!action_client_get_path_.waitForResult(update_period)){
-      // keep waiting for planning to complete (we already waited update_period in waitForResult)
-      continue;
-    }
-
-    state = action_client_get_path_.getState();
-    mbf_msgs::GetPathResultConstPtr planner_result = action_client_get_path_.getResult();
-
-    if (!(state == actionlib::SimpleClientGoalState::SUCCEEDED && replanningActive())){
-      ROS_DEBUG_STREAM_NAMED("move_base", "Replanning failed with error code " << planner_result->outcome << ": " << planner_result->message);
-      continue;
-    }
-
-    ROS_DEBUG_STREAM_NAMED("move_base", "Replanning succeeded; sending a goal to \"get_inter_path\" with the new plan");
-
-    get_inter_path_goal_.start_pose = get_path_goal_.start_pose;
-    get_inter_path_goal_.target_pose = get_path_goal_.target_pose;
-    get_inter_path_goal_.use_start_pose = get_path_goal_.use_start_pose;
-    get_inter_path_goal_.path = planner_result->path;
-    
-    mbf_msgs::GetInterPathGoal get_inter_path_goal(get_inter_path_goal_);
-    action_client_get_inter_path_.sendGoal(get_inter_path_goal,
-      boost::bind(&MoveBaseAction::actionGetInterPathDone, this, _1, _2)
-    );
-
-    if (action_client_get_inter_path_.getState().isDone()){
-      continue;
-    }
-      
-    if (!(action_client_get_inter_path_.waitForResult(update_period))){
-      continue;
-    }
-
-    state = action_client_get_inter_path_.getState();
-    mbf_msgs::GetInterPathResultConstPtr inter_result = action_client_get_inter_path_.getResult();
-      
-    if (!(state == actionlib::SimpleClientGoalState::SUCCEEDED && replanningActive())){
-      ROS_DEBUG_STREAM_NAMED("move_base", "Reinterpolating failed with error code " << inter_result->outcome << ": " << inter_result->message);
-      continue;
-    }
-
-    ROS_DEBUG_STREAM_NAMED("move_base", "Reinterpolating succeeded; sending a goal to \"exe_path\" with the new plan");
-    exe_path_goal_.path = inter_result->path;
-    mbf_msgs::ExePathGoal exe_goal(exe_path_goal_);
-    action_client_exe_path_.sendGoal(exe_goal,
-      boost::bind(&MoveBaseAction::actionExePathDone, this, _1, _2),
-      boost::bind(&MoveBaseAction::actionExePathActive, this),
-      boost::bind(&MoveBaseAction::actionExePathFeedback, this, _1)
-    );
   }
 
   // el atrocidad
