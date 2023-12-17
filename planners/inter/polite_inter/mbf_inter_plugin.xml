@@ -1,0 +1,8 @@
+<library path="lib/libpolite_inter">
+    <class name="polite_inter/PoliteInter" type="polite_inter::PoliteInter"
+        base_class_type="mbf_costmap_core::CostmapInter">
+        <description>
+            An intermediate planner that stops the robot if a pedestrian is detected within 2 meters and waits until the pedestrian is at least 4 meters away.
+        </description>
+    </class>
+</library>
