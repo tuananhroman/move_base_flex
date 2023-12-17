@@ -2,7 +2,9 @@ cmake_minimum_required(VERSION 3.0.2)
 project(polite_inter)
 
 find_package(catkin REQUIRED COMPONENTS
+  roscpp
   mbf_costmap_core
+  costmap_2d
 )
 
 generate_dynamic_reconfigure_options(
@@ -19,7 +21,6 @@ catkin_package(
 # # Build ##
 # ##########
 include_directories(
-
   # include
   ${catkin_INCLUDE_DIRS}
 )
@@ -31,6 +32,7 @@ add_dependencies(polite_inter ${PROJECT_NAME}_gencfg)
 
 target_link_libraries(polite_inter
   ${catkin_LIBRARIES}
+  costmap_2d
 )
 
 # ############
