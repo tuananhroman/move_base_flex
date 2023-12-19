@@ -1,6 +1,7 @@
 #include "../include/polite_inter.h"
 #include <costmap_2d/semantic_layer.h>
 #include <costmap_2d/GetDump.h>
+#include <costmap_2d/costmap_2d_publisher.h>
 #include <pluginlib/class_list_macros.hpp>
 
 PLUGINLIB_EXPORT_CLASS(polite_inter::PoliteInter, mbf_costmap_core::CostmapInter)
@@ -8,22 +9,31 @@ PLUGINLIB_EXPORT_CLASS(polite_inter::PoliteInter, mbf_costmap_core::CostmapInter
 namespace polite_inter
 {
 
+    ros::ServiceClient get_dump_client_;
     const uint32_t SUCCESS = 0;
     const uint32_t INTERNAL_ERROR = 1;
 
     uint32_t PoliteInter::makePlan(const geometry_msgs::PoseStamped &start, const geometry_msgs::PoseStamped &goal,
-                                  std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
+                                std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
     {
-        // Call the GetDump service to obtain semantic layers
-        costmap_2d::GetDump getDump_srv;
+        // Create a request message
+        costmap_2d::GetDump::Request request;
+        // No need to set any specific fields in the request for this example
+
+        // Create a response message
+        costmap_2d::GetDump::Response response;
+
+        costmap_2d::GetDump srv;
+
+        ROS_INFO("Calling GetDump service...");
 
         // Call the GetDump service
-        if (get_dump_client_.call(getDump_srv))
+        if (get_dump_client_.call(srv))
         {
-            ROS_INFO("We called the service");
+            ROS_ERROR("GetDump service call successful");
 
             // Access the semantic layers from the response
-            auto semantic_layers = getDump_srv.response.semantic_layers;
+            auto semantic_layers = srv.response.semantic_layers;
 
             // Process the semantic layers
             for (const auto &semantic_layer : semantic_layers)
@@ -57,10 +67,6 @@ namespace polite_inter
 
             plan = std::vector<geometry_msgs::PoseStamped>(plan_.begin(), plan_.begin() + limit);
 
-            // Unlock the mutexes
-            lock.unlock();
-            lock2.unlock();
-
             // Return the result code
             return 0;
         }
@@ -68,7 +74,7 @@ namespace polite_inter
         {
             ROS_ERROR("Failed to call GetDump service");
             // Handle the error and return an appropriate result code
-            return polite_inter::INTERNAL_ERROR;;
+            return polite_inter::INTERNAL_ERROR;
         }
     }
 
@@ -84,7 +90,7 @@ namespace polite_inter
         this->name = name;
 
         // Create a service client for the GetDump service
-        get_dump_client_ = ros::NodeHandle("~").serviceClient<costmap_2d::GetDump>("get_dump");
+        get_dump_client_ = ros::NodeHandle("~").serviceClient<costmap_2d::GetDump>("SFAMSFSAFget_dump");
 
         dynamic_reconfigure::Server<polite_inter::PoliteInterConfig> server;
         server.setCallback(boost::bind(&PoliteInter::reconfigure, this, _1, _2));
