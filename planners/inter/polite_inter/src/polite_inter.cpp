@@ -90,8 +90,8 @@ namespace polite_inter
         this->name = name;
 
         // Create a service client for the GetDump service
-        get_dump_client_ = ros::NodeHandle("~").serviceClient<costmap_2d::GetDump>("SFAMSFSAFget_dump");
-
+        get_dump_client_ = ros::NodeHandle("~").serviceClient<costmap_2d::GetDump>("global_costmap/get_dump");
+    
         dynamic_reconfigure::Server<polite_inter::PoliteInterConfig> server;
         server.setCallback(boost::bind(&PoliteInter::reconfigure, this, _1, _2));
     }
