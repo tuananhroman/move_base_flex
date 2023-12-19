@@ -1,94 +1,93 @@
-// polite_inter.cpp
 #include "../include/polite_inter.h"
 #include <pluginlib/class_list_macros.hpp>
-#include <costmap_2d/costmap_2d_publisher.h>
 
 PLUGINLIB_EXPORT_CLASS(polite_inter::PoliteInter, mbf_costmap_core::CostmapInter)
 
 namespace polite_inter
 {
-uint32_t PoliteInter::makePlan(const geometry_msgs::PoseStamped &start,
-                               const geometry_msgs::PoseStamped &goal,
-                               std::vector<geometry_msgs::PoseStamped> &plan,
-                               double &cost,
-                               std::string &message)
-{
-    boost::unique_lock<boost::mutex> lock(vision_cfg_mtx_);
-    boost::unique_lock<boost::mutex> lock2(plan_mtx_);
 
-    // Check for obstacles in the semantic layer within 2 meters of the robot
-    for (const auto &semantic : semantic_info_)
+    const uint32_t SUCCESS = 0;
+    const uint32_t INTERNAL_ERROR = 1;
+
+    uint32_t PoliteInter::makePlan(const geometry_msgs::PoseStamped &start, const geometry_msgs::PoseStamped &goal,
+                                  std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
     {
-        double distance = std::hypot(start.pose.position.x - semantic.x, start.pose.position.y - semantic.y);
+        // Call the GetDump service to obtain semantic layers
+        costmap_2d::GetDump getDump_srv;
 
-        if (distance <= 2.0)
+        // Call the GetDump service
+        if (get_dump_client_.call(getDump_srv))
         {
-            // Obstacle within 2 meters, stop the robot
-            plan.clear();
-            return 0; // Success, but the plan is empty
+            // Access the semantic layers from the response
+            auto semantic_layers = getDump_srv.response.semantic_layers;
+
+            // Process the semantic layers as needed
+            // ...
+
+            // Example: print the names of semantic layers
+            for (const auto &semantic_layer : semantic_layers)
+            {
+                ROS_INFO("Semantic Layer Names:");
+                for (const auto &layer_name : semantic_layer.layers)
+                {
+                    ROS_INFO_STREAM("  " << layer_name);
+                }
+            }
+            // Use semantic_layers data to modify the plan as needed
+            // ...
+
+            // Lock the mutexes for plan_ and vision_cfg_mtx_
+            boost::unique_lock<boost::mutex> lock2(plan_mtx_);
+            boost::unique_lock<boost::mutex> lock(vision_cfg_mtx_);
+
+            // Modify the plan based on the semantic_layers data
+            size_t limit = std::floor(plan_.size() * vision_limit_);
+            limit = std::max(limit, min_poses_);
+            limit = std::min(limit, plan_.size());
+
+            plan = std::vector<geometry_msgs::PoseStamped>(plan_.begin(), plan_.begin() + limit);
+
+            // Unlock the mutexes
+            lock.unlock();
+            lock2.unlock();
+
+            // Return the result code
+            return 0;
+        }
+        else
+        {
+            ROS_ERROR("Failed to call GetDump service");
+            // Handle the error and return an appropriate result code
+            return polite_inter::INTERNAL_ERROR;;
         }
     }
 
-    // If no obstacle within 2 meters, proceed with the original behavior
-    size_t limit = std::floor(plan_.size() * vision_limit_);
-    limit = std::max(limit, min_poses_);
-    limit = std::min(limit, plan_.size());
-
-    plan = std::vector<geometry_msgs::PoseStamped>(plan_.begin(), plan_.begin() + limit);
-
-    return 0;
-}
-
-bool PoliteInter::setPlan(const std::vector<geometry_msgs::PoseStamped> &plan,
-                          const std::vector<costmap_2d::SemanticDump> &semantic_info)
-{
-    boost::unique_lock<boost::mutex> lock(plan_mtx_);
-    plan_ = plan;
-    semantic_info_ = semantic_info;
-    return true;
-}
-
-void PoliteInter::initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros,
-                             costmap_2d::Costmap2DROS *local_costmap_ros)
-{
-    this->name = name;
-
-    dynamic_reconfigure::Server<polite_inter::PoliteInterConfig> server;
-    server.setCallback(boost::bind(&PoliteInter::reconfigure, this, _1, _2));
-
-    // Add a service server for getting semantic information
-    ros::NodeHandle nh("~");
-    ros::ServiceServer service = nh.advertiseService("get_semantic_info", &PoliteInter::getSemanticInfo, this);
-}
-
-bool PoliteInter::getSemanticInfo(costmap_2d::GetSemanticInfo::Request &req,
-                                  costmap_2d::GetSemanticInfo::Response &res)
-{
-    costmap_2d::GetDump srv;
-    ros::NodeHandle nh("~");
-
-    // Assuming semantic layer service is named "semantic_layer/get_dump"
-    ros::ServiceClient client = nh.serviceClient<costmap_2d::GetDump>("semantic_layer/get_dump");
-
-    if (client.call(srv))
+    bool PoliteInter::setPlan(const std::vector<geometry_msgs::PoseStamped> &plan)
     {
-        res.semantic_info = srv.response.semantic_layers;
-
-        // Additional processing if needed
-
+        boost::unique_lock<boost::mutex> lock(plan_mtx_);
+        plan_ = plan;
         return true;
     }
-    else
-    {
-        ROS_ERROR("Failed to call semantic layer service");
-        return false;
-    }
-}
-void PoliteInter::reconfigure(polite_inter::PoliteInterConfig &config, uint32_t level)
-{
-    boost::unique_lock<boost::mutex> lock(vision_cfg_mtx_);
-    vision_limit_ = config.vision_limit;
-    min_poses_ = config.min_poses;
-}
 
-} // namespace polite_inter
+    void PoliteInter::initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros, costmap_2d::Costmap2DROS *local_costmap_ros)
+    {
+        this->name = name;
+
+        // Create a NodeHandle object
+        ros::NodeHandle nh;
+
+        // Create a service client for the GetDump service
+        get_dump_client_ = nh.serviceClient<costmap_2d::GetDump>("get_dump");
+
+        dynamic_reconfigure::Server<polite_inter::PoliteInterConfig> server;
+        server.setCallback(boost::bind(&PoliteInter::reconfigure, this, _1, _2));
+    }
+
+    void PoliteInter::reconfigure(polite_inter::PoliteInterConfig &config, uint32_t level)
+    {
+        boost::unique_lock<boost::mutex> lock(vision_cfg_mtx_);
+        vision_limit_ = config.vision_limit;
+        min_poses_ = config.min_poses;
+    }
+
+}
