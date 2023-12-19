@@ -1,4 +1,6 @@
 #include "../include/polite_inter.h"
+#include <costmap_2d/semantic_layer.h>
+#include <costmap_2d/GetDump.h>
 #include <pluginlib/class_list_macros.hpp>
 
 PLUGINLIB_EXPORT_CLASS(polite_inter::PoliteInter, mbf_costmap_core::CostmapInter)
@@ -18,21 +20,29 @@ namespace polite_inter
         // Call the GetDump service
         if (get_dump_client_.call(getDump_srv))
         {
+            ROS_INFO("We called the service");
+
             // Access the semantic layers from the response
             auto semantic_layers = getDump_srv.response.semantic_layers;
 
-            // Process the semantic layers as needed
-            // ...
-
-            // Example: print the names of semantic layers
+            // Process the semantic layers
             for (const auto &semantic_layer : semantic_layers)
             {
                 ROS_INFO("Semantic Layer Names:");
-                for (const auto &layer_name : semantic_layer.layers)
+
+                // Iterate through the layers
+                for (const auto &layer : semantic_layer.layers)
                 {
-                    ROS_INFO_STREAM("  " << layer_name);
+                    ROS_INFO_STREAM("Layer Name: " << layer);
+
+                    // Iterate through the points in each layer
+                    for (const auto &point : layer.points)
+                    {
+                        ROS_INFO_STREAM("Location: " << "x: " << point.location.x << ", y: " << point.location.y << ", z: " << point.location.z);
+                    }
                 }
             }
+
             // Use semantic_layers data to modify the plan as needed
             // ...
 
@@ -73,11 +83,8 @@ namespace polite_inter
     {
         this->name = name;
 
-        // Create a NodeHandle object
-        ros::NodeHandle nh;
-
         // Create a service client for the GetDump service
-        get_dump_client_ = nh.serviceClient<costmap_2d::GetDump>("get_dump");
+        get_dump_client_ = ros::NodeHandle("~").serviceClient<costmap_2d::GetDump>("get_dump");
 
         dynamic_reconfigure::Server<polite_inter::PoliteInterConfig> server;
         server.setCallback(boost::bind(&PoliteInter::reconfigure, this, _1, _2));
