@@ -1,17 +1,18 @@
-#ifndef SHORTSIGHTED_INTER_H_
-#define SHORTSIGHTED_INTER_H_
+#ifndef SIDEWAYS_INTER_H_
+#define SIDEWAYS_INTER_H_
 
 #include <ros/ros.h>
 #include <mbf_costmap_core/costmap_inter.h>
 #include <boost/thread/mutex.hpp>
+#include <costmap_2d/GetDump.h>
 
 #include <dynamic_reconfigure/server.h>
-#include <shortsighted_inter/ShortsightedInterConfig.h>
+#include <sideways_inter/sidewaysInterConfig.h>
 
-namespace shortsighted_inter
+namespace sideways_inter
 {
 
-    class ShortsightedInter : public mbf_costmap_core::CostmapInter
+    class sidewaysInter : public mbf_costmap_core::CostmapInter
     {
 
         using mbf_costmap_core::CostmapInter::CostmapInter;
@@ -67,6 +68,7 @@ namespace shortsighted_inter
 
     private:
         // storage for setPlan
+        ros::ServiceClient get_dump_client_;
         std::vector<geometry_msgs::PoseStamped> plan_;
         boost::mutex plan_mtx_;
 
@@ -81,8 +83,8 @@ namespace shortsighted_inter
 
         boost::mutex vision_cfg_mtx_;
 
-        void reconfigure(shortsighted_inter::ShortsightedInterConfig &config, uint32_t level);
+        void reconfigure(sideways_inter::sidewaysInterConfig &config, uint32_t level);
     };
 }
 
-#endif // SHORTSIGHTED_INTER_H_
+#endif // SIDEWAYS_INTER_H_
