@@ -36,16 +36,35 @@ namespace sideways_inter
                 // Iterate through the layers
                 for (const auto &layer : semantic_layer.layers)
                 {
-                    ROS_ERROR("Layer Name: %s", layer.type.c_str());
+                    ROS_INFO("Layer Name: %s", layer.type.c_str());
 
 
-                    // Iterate through the points in each layer
+
+
+                    if (strcmp(layer.type.c_str(), "pedestrian") == 0)
+                    {
+                     // Iterate through the points in each layer
                     for (const auto &point : layer.points)
                     {
-                        ROS_ERROR("Location: x: %f, y: %f, z: %f", point.location.x, point.location.y, point.location.z);
+                                                                                                                                         //debug to the position of pedestrians :ROS_INFO("Location: x: %f, y: %f, z: %f", point.location.x, point.location.y, point.location.z);
 
-                    }
+                    //TODO: When the robot sees a pedestrian he should stop
+                    // Calculate the distance between the robot and the pedestrian
+                    double distance = std::sqrt(std::pow(start.pose.position.x - point.location.x, 2) +
+                                                std::pow(start.pose.position.y - point.location.y, 2));
+
+                    ROS_ERROR("Distance to pedestrian: %f meters", distance);                                                            // debug to see position and goal: ROS_ERROR("Current Position: %.2f, %.2f, Goal: %.2f, %.2f", start.pose.position.x, start.pose.position.y, goal.pose.position.x, goal.pose.position.y);
+                    
+
+                    if (distance <= 4.0){
+                    ROS_ERROR("Pedestrian too close! Stopping and moving backward.");                     
+                    }                       
+                  
                 }
+                }
+                }
+                // Check if the layer is of type "pedestrian" and adjust the plan accordingly
+
             }
 
             
@@ -69,6 +88,7 @@ namespace sideways_inter
             // Return the result code
             return 0;
         }
+        
         else
         {
             ROS_ERROR_STREAM("Failed to call GetDump service. Call result: " << get_dump_client_.call(getDump_srv));
