@@ -1,9 +1,11 @@
 #include "../include/sideways_inter.h"
 #include <costmap_2d/semantic_layer.h>
 #include <costmap_2d/GetDump.h>
+#include <costmap_2d/costmap_2d_publisher.h>
 #include <pluginlib/class_list_macros.hpp>
 
 PLUGINLIB_EXPORT_CLASS(sideways_inter::sidewaysInter, mbf_costmap_core::CostmapInter)
+
 
 namespace sideways_inter
 {
@@ -18,6 +20,7 @@ namespace sideways_inter
         costmap_2d::GetDump getDump_srv;
 
         // Call the GetDump service
+        
         if (get_dump_client_.call(getDump_srv))
         {
             ROS_INFO("We called the service");
@@ -33,18 +36,20 @@ namespace sideways_inter
                 // Iterate through the layers
                 for (const auto &layer : semantic_layer.layers)
                 {
-                    ROS_INFO_STREAM("Layer Name: " << layer);
+                    ROS_ERROR("Layer Name: %s", layer.type.c_str());
+
 
                     // Iterate through the points in each layer
                     for (const auto &point : layer.points)
                     {
-                        ROS_INFO_STREAM("Location: " << "x: " << point.location.x << ", y: " << point.location.y << ", z: " << point.location.z);
+                        ROS_ERROR("Location: x: %f, y: %f, z: %f", point.location.x, point.location.y, point.location.z);
+
                     }
                 }
             }
 
-            // Use semantic_layers data to modify the plan as needed
-            // ...
+            
+            //TODO: Use semantic_layers data to modify the plan as needed
 
             // Lock the mutexes for plan_ and vision_cfg_mtx_
             boost::unique_lock<boost::mutex> lock2(plan_mtx_);
@@ -66,9 +71,10 @@ namespace sideways_inter
         }
         else
         {
-            ROS_ERROR("Failed to call GetDump service");
+            ROS_ERROR_STREAM("Failed to call GetDump service. Call result: " << get_dump_client_.call(getDump_srv));
+          
             // Handle the error and return an appropriate result code
-            return sideways_inter::INTERNAL_ERROR;;
+            return sideways_inter::INTERNAL_ERROR;
         }
     }
 
@@ -84,8 +90,8 @@ namespace sideways_inter
         this->name = name;
 
         // Create a service client for the GetDump service
-        get_dump_client_ = ros::NodeHandle("~").serviceClient<costmap_2d::GetDump>("get_dump");
-
+        get_dump_client_ = ros::NodeHandle("~").serviceClient<costmap_2d::GetDump>("global_costmap/get_dump");
+     
         dynamic_reconfigure::Server<sideways_inter::sidewaysInterConfig> server;
         server.setCallback(boost::bind(&sidewaysInter::reconfigure, this, _1, _2));
     }
