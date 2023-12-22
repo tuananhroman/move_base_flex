@@ -17,15 +17,15 @@ namespace polite_inter
                                 std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
     {
         // Create a request message
-        costmap_2d::GetDump::Request request;
+        //costmap_2d::GetDump::Request request;
         // No need to set any specific fields in the request for this example
 
         // Create a response message
-        costmap_2d::GetDump::Response response;
+        //costmap_2d::GetDump::Response response;
 
         costmap_2d::GetDump srv;
 
-        ROS_INFO("Calling GetDump service...");
+        ROS_ERROR("Calling GetDump service...");
 
         // Call the GetDump service
         if (get_dump_client_.call(srv))
@@ -38,23 +38,22 @@ namespace polite_inter
             // Process the semantic layers
             for (const auto &semantic_layer : semantic_layers)
             {
-                ROS_INFO("Semantic Layer Names:");
+                ROS_ERROR("Semantic Layer Names:");
 
                 // Iterate through the layers
                 for (const auto &layer : semantic_layer.layers)
                 {
-                    ROS_INFO_STREAM("Layer Name: " << layer);
+                    ROS_ERROR("Layer Name: %s", layer.type.c_str());
 
                     // Iterate through the points in each layer
                     for (const auto &point : layer.points)
                     {
-                        ROS_INFO_STREAM("Location: " << "x: " << point.location.x << ", y: " << point.location.y << ", z: " << point.location.z);
+                        ROS_ERROR("Location: x: %f, y: %f, z: %f", point.location.x, point.location.y, point.location.z);
                     }
                 }
             }
 
             // Use semantic_layers data to modify the plan as needed
-            // ...
 
             // Lock the mutexes for plan_ and vision_cfg_mtx_
             boost::unique_lock<boost::mutex> lock2(plan_mtx_);
