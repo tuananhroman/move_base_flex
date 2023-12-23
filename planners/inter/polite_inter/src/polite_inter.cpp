@@ -29,7 +29,7 @@ namespace polite_inter
         //costmap_2d::GetDump::Response response;
 
         costmap_2d::GetDump srv;
-        // Lock the mutexes for plan_
+        // Lock the mutex for plan_
         boost::unique_lock<boost::mutex> lock(plan_mtx_);
         
         double robot_x = start.pose.position.x;
@@ -62,7 +62,7 @@ namespace polite_inter
                         {
                             double distance = std::sqrt(std::pow(point.location.x - robot_x, 2) + std::pow(point.location.y - robot_y, 2));
                             //ROS_ERROR("Location: x: %f, y: %f, z: %f, Distance: %f", point.location.x, point.location.y, point.location.z, distance);
-                            // Check if the pedestrian is 2 meters or nearer
+                            // Check if the pedestrian is 2 meters or nearer (adjust to desired distance)
                             if ((distance <= 2.0) && !new_goal_set_)
                             {
                                 ROS_ERROR("Condition Satisfied. Distance: %f", distance);
@@ -104,7 +104,6 @@ namespace polite_inter
         else
         {
             ROS_ERROR("Failed to call GetDump service");
-            // Handle the error and return an appropriate result code
             return polite_inter::INTERNAL_ERROR;
         }
     }
