@@ -1,4 +1,4 @@
-#include "../include/polite_inter.h"
+#include "../include/aggressive_inter.h"
 #include <costmap_2d/semantic_layer.h>
 #include <costmap_2d/GetDump.h>
 #include <costmap_2d/costmap_2d_publisher.h>
@@ -6,9 +6,9 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <tf2/LinearMath/Quaternion.h>
 
-PLUGINLIB_EXPORT_CLASS(polite_inter::PoliteInter, mbf_costmap_core::CostmapInter)
+PLUGINLIB_EXPORT_CLASS(aggressive_inter::AggressiveInter, mbf_costmap_core::CostmapInter)
 
-namespace polite_inter
+namespace aggressive_inter
 {
 
     ros::ServiceClient get_dump_client_;
@@ -18,7 +18,7 @@ namespace polite_inter
     bool new_goal_set_ = false;
     
 
-    uint32_t PoliteInter::makePlan(const geometry_msgs::PoseStamped &start, const geometry_msgs::PoseStamped &goal,
+    uint32_t AggressiveInter::makePlan(const geometry_msgs::PoseStamped &start, const geometry_msgs::PoseStamped &goal,
                                 std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
     {
         // Create a request message
@@ -104,18 +104,18 @@ namespace polite_inter
         else
         {
             ROS_ERROR("Failed to call GetDump service");
-            return polite_inter::INTERNAL_ERROR;
+            return aggressive_inter::INTERNAL_ERROR;
         }
     }
 
-    bool PoliteInter::setPlan(const std::vector<geometry_msgs::PoseStamped> &plan)
+    bool AggressiveInter::setPlan(const std::vector<geometry_msgs::PoseStamped> &plan)
     {
         boost::unique_lock<boost::mutex> lock(plan_mtx_);
         plan_ = plan;
         return true;
     }
 
-    void PoliteInter::initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros, costmap_2d::Costmap2DROS *local_costmap_ros)
+    void AggressiveInter::initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros, costmap_2d::Costmap2DROS *local_costmap_ros)
     {
         this->name = name;
 
@@ -123,14 +123,5 @@ namespace polite_inter
 
         // Create a service client for the GetDump service
         get_dump_client_ = nh_.serviceClient<costmap_2d::GetDump>("global_costmap/get_dump");
-    
-        dynamic_reconfigure::Server<polite_inter::PoliteInterConfig> server;
-        server.setCallback(boost::bind(&PoliteInter::reconfigure, this, _1, _2));
-    }
-
-    void PoliteInter::reconfigure(polite_inter::PoliteInterConfig &config, uint32_t level)
-    {
-        boost::unique_lock<boost::mutex> lock(vision_cfg_mtx_);
-        min_poses_ = config.min_poses;
     }
 }

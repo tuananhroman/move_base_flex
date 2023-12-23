@@ -1,5 +1,5 @@
 <library path="lib/libaggressive_inter">
-    <class name="polite_inter/AggressiveInter" type="polite_inter::AggressiveInter"
+    <class name="aggressive_inter/AggressiveInter" type="aggressive_inter::AggressiveInter"
         base_class_type="mbf_costmap_core::CostmapInter">
         <description>
             An intermediate planner that behaves aggressively.
