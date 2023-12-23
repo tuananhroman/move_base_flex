@@ -3,6 +3,8 @@
 #include <costmap_2d/GetDump.h>
 #include <costmap_2d/costmap_2d_publisher.h>
 #include <pluginlib/class_list_macros.hpp>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2/LinearMath/Quaternion.h>
 
 PLUGINLIB_EXPORT_CLASS(polite_inter::PoliteInter, mbf_costmap_core::CostmapInter)
 
@@ -12,6 +14,8 @@ namespace polite_inter
     ros::ServiceClient get_dump_client_;
     const uint32_t SUCCESS = 0;
     const uint32_t INTERNAL_ERROR = 1;
+    geometry_msgs::PoseStamped temp_goal;
+    bool new_goal_set_ = false;
     
 
     uint32_t PoliteInter::makePlan(const geometry_msgs::PoseStamped &start, const geometry_msgs::PoseStamped &goal,
@@ -30,6 +34,8 @@ namespace polite_inter
         
         double robot_x = start.pose.position.x;
         double robot_y = start.pose.position.y;
+        //ROS_ERROR("Original Goal at the Start: x: %f, y: %f, z: %f, orientation: %f",
+        //            goal.pose.position.x, goal.pose.position.y, goal.pose.position.z, tf::getYaw(goal.pose.orientation));
 
         // Call the GetDump service
         if (get_dump_client_.call(srv))
@@ -57,24 +63,38 @@ namespace polite_inter
                             double distance = std::sqrt(std::pow(point.location.x - robot_x, 2) + std::pow(point.location.y - robot_y, 2));
                             //ROS_ERROR("Location: x: %f, y: %f, z: %f, Distance: %f", point.location.x, point.location.y, point.location.z, distance);
                             // Check if the pedestrian is 2 meters or nearer
-                            if ((distance <= 4.0))
+                            if ((distance <= 4.0) && !new_goal_set_)
                             {
                                 ROS_ERROR("Condition Satisfied. Distance: %f", distance);
-
-                                // Set a temporary goal 2 meters behind the robot
-                                geometry_msgs::PoseStamped temp_goal = goal;
-                                temp_goal.pose.position.x -= 2.0;  // 2 meters behind the current robot position
-                                temp_goal.pose.orientation = tf::createQuaternionMsgFromYaw(tf::getYaw(temp_goal.pose.orientation) + M_PI); // Reverse orientation
-
-                                // Clear the existing plan and set the temporary goal
-                                plan.clear();
-                                plan.push_back(temp_goal);
-                                break;
+                                if(!new_goal_set_){
+                                    ROS_ERROR("Setting new goal");
+                                    temp_goal = start;
+                                    temp_goal.pose.position.x -= 2.0;
+                                    temp_goal.pose.orientation = tf::createQuaternionMsgFromYaw(tf::getYaw(temp_goal.pose.orientation));
+                                    temp_goal.header.frame_id = goal.header.frame_id;
+                                    plan.clear();
+                                    plan.push_back(temp_goal);  // Use push_back instead of insert
+                                    new_goal_set_ = true;
+                                }
                             }
                         }
                     }
                 }
             }
+            if (new_goal_set_)
+            {
+                ROS_ERROR("Setting new goal");
+                ROS_ERROR("Position: x = %f, y = %f, z = %f", temp_goal.pose.position.x, temp_goal.pose.position.y, temp_goal.pose.position.z);
+
+                // Explicitly set the frame_id of temp_goal to the global frame ("map")
+                plan.clear();
+                plan.push_back(temp_goal);
+
+                // Append the rest of the existing plan
+                plan.insert(plan.begin(), plan_.begin(), plan_.end());
+                return 0;
+            }
+
             plan.insert(plan.end(), plan_.begin(), plan_.end());
             return 0;
         }

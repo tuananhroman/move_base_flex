@@ -69,9 +69,6 @@ namespace polite_inter
          * @brief Makes the robot move back a specified distance
          * @param distance the distance in emtres we want the robot to moev back
          */
-        void moveBackward(double distance);
-        void waitForSubgoal();
-        void isNearGoal();
 
     private:
         // storage for setPlan
