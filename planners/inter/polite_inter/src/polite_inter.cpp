@@ -63,7 +63,7 @@ namespace polite_inter
                             double distance = std::sqrt(std::pow(point.location.x - robot_x, 2) + std::pow(point.location.y - robot_y, 2));
                             //ROS_ERROR("Location: x: %f, y: %f, z: %f, Distance: %f", point.location.x, point.location.y, point.location.z, distance);
                             // Check if the pedestrian is 2 meters or nearer
-                            if ((distance <= 3.0) && !new_goal_set_)
+                            if ((distance <= 2.0) && !new_goal_set_)
                             {
                                 ROS_ERROR("Condition Satisfied. Distance: %f", distance);
                                 if(!new_goal_set_){
