@@ -55,10 +55,32 @@ namespace sideways_inter
 
                     ROS_ERROR("Distance to pedestrian: %f meters", distance);                                                            // debug to see position and goal: ROS_ERROR("Current Position: %.2f, %.2f, Goal: %.2f, %.2f", start.pose.position.x, start.pose.position.y, goal.pose.position.x, goal.pose.position.y);
                     
-
                     if (distance <= 4.0){
-                    ROS_ERROR("Pedestrian too close! Stopping and moving backward.");                     
-                    }                       
+                        ROS_ERROR("Pedestrian too close! Stopping and moving backward.");
+
+                        // Calculate the angle between the current position and the goal
+                        double angle = std::atan2(goal.pose.position.y - start.pose.position.y, goal.pose.position.x - start.pose.position.x);
+
+                        // Calculate the new goal position 2 meters backward
+                        geometry_msgs::PoseStamped new_goal;
+                        new_goal.pose.position.x = start.pose.position.x - 2.0 * cos(angle);
+                        new_goal.pose.position.y = start.pose.position.y - 2.0 * sin(angle);
+
+                        // Update the plan with the new goal
+                        plan.clear();
+                        plan.push_back(new_goal);
+
+                        // Output the updated plan to the console
+                        ROS_ERROR("Updated Plan:");
+
+                        for (const auto &pose : plan) {
+                            ROS_ERROR("Plan Pose: x=%.2f, y=%.2f", pose.pose.position.x, pose.pose.position.y);
+                            
+                        }                       
+
+                        // Set the cost to a high value to discourage the robot from taking this path
+                        cost = std::numeric_limits<double>::infinity();
+                    }                    
                   
                 }
                 }
