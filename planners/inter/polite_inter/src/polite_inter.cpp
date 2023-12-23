@@ -16,6 +16,7 @@ namespace polite_inter
     const uint32_t INTERNAL_ERROR = 1;
     geometry_msgs::PoseStamped temp_goal;
     bool new_goal_set_ = false;
+    geometry_msgs::PoseStamped end_goal;
     
 
     uint32_t PoliteInter::makePlan(const geometry_msgs::PoseStamped &start, const geometry_msgs::PoseStamped &goal,
@@ -63,17 +64,20 @@ namespace polite_inter
                             double distance = std::sqrt(std::pow(point.location.x - robot_x, 2) + std::pow(point.location.y - robot_y, 2));
                             //ROS_ERROR("Location: x: %f, y: %f, z: %f, Distance: %f", point.location.x, point.location.y, point.location.z, distance);
                             // Check if the pedestrian is 2 meters or nearer
-                            if ((distance <= 4.0) && !new_goal_set_)
+                            if ((distance <= 3.0) && !new_goal_set_)
                             {
                                 ROS_ERROR("Condition Satisfied. Distance: %f", distance);
                                 if(!new_goal_set_){
                                     ROS_ERROR("Setting new goal");
                                     temp_goal = start;
-                                    temp_goal.pose.position.x -= 2.0;
+                                    end_goal = goal;
+                                    double theta = tf::getYaw(temp_goal.pose.orientation);
+                                    temp_goal.pose.position.x -= 2.0 * cos(theta);
+                                    temp_goal.pose.position.y -= 2.0 * sin(theta);
                                     temp_goal.pose.orientation = tf::createQuaternionMsgFromYaw(tf::getYaw(temp_goal.pose.orientation));
-                                    temp_goal.header.frame_id = goal.header.frame_id;
-                                    plan.clear();
-                                    plan.push_back(temp_goal);  // Use push_back instead of insert
+                                    end_goal.pose.orientation = tf::createQuaternionMsgFromYaw(tf::getYaw(end_goal.pose.orientation));
+                                    temp_goal.header.frame_id = start.header.frame_id;
+                                    end_goal.header.frame_id = goal.header.frame_id;
                                     new_goal_set_ = true;
                                 }
                             }
@@ -83,18 +87,21 @@ namespace polite_inter
             }
             if (new_goal_set_)
             {
+                double distance_to_temp_goal = std::sqrt(std::pow(temp_goal.pose.position.x - robot_x, 2) + std::pow(temp_goal.pose.position.y - robot_y, 2));
+                
+                if (distance_to_temp_goal <= 0.2) // Adjust the threshold as needed
+                {
+                    ROS_ERROR("Reached temp_goal. Resetting new_goal_set.");
+                    new_goal_set_ = false;
+                }
                 ROS_ERROR("Setting new goal");
                 ROS_ERROR("Position: x = %f, y = %f, z = %f", temp_goal.pose.position.x, temp_goal.pose.position.y, temp_goal.pose.position.z);
 
-                // Explicitly set the frame_id of temp_goal to the global frame ("map")
+                // Clear the existing plan and add temp_goal
                 plan.clear();
                 plan.push_back(temp_goal);
-
-                // Append the rest of the existing plan
-                plan.insert(plan.begin(), plan_.begin(), plan_.end());
                 return 0;
             }
-
             plan.insert(plan.end(), plan_.begin(), plan_.end());
             return 0;
         }
