@@ -1,17 +1,17 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(polite_inter)
+project(aggressive_inter)
 
 find_package(catkin REQUIRED COMPONENTS
   mbf_costmap_core
 )
 
 generate_dynamic_reconfigure_options(
-  cfg/PoliteInter.cfg
+  cfg/AggressiveInter.cfg
 )
 
 catkin_package(
   INCLUDE_DIRS include
-  LIBRARIES polite_inter
+  LIBRARIES aggressive_inter
   CATKIN_DEPENDS mbf_costmap_core
 )
 
@@ -24,19 +24,19 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
-add_library(polite_inter src/polite_inter.cpp)
+add_library(aggressive_inter src/aggressive_inter.cpp)
 
-add_dependencies(polite_inter ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-add_dependencies(polite_inter ${PROJECT_NAME}_gencfg)
+add_dependencies(aggressive_inter ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(aggressive_inter ${PROJECT_NAME}_gencfg)
 
-target_link_libraries(polite_inter
+target_link_libraries(aggressive_inter
   ${catkin_LIBRARIES}
 )
 
 # ############
 # # Install ##
 # ############
-install(TARGETS polite_inter
+install(TARGETS aggressive_inter
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}

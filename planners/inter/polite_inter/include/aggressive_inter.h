@@ -1,17 +1,17 @@
-#ifndef POLITE_INTER_H_
-#define POLITE_INTER_H_
+#ifndef aggressive_inter_H_
+#define aggressive_inter_H_
 
 #include <ros/ros.h>
 #include <mbf_costmap_core/costmap_inter.h>
 #include <boost/thread/mutex.hpp>
 #include <costmap_2d/GetDump.h>
 #include <dynamic_reconfigure/server.h>
-#include <polite_inter/PoliteInterConfig.h>
+#include <aggressive_inter/AggressiveInterConfig.h>
 
-namespace polite_inter
+namespace aggressive_inter
 {
 
-    class PoliteInter : public mbf_costmap_core::CostmapInter
+    class AggressiveInter : public mbf_costmap_core::CostmapInter
     {
 
         using mbf_costmap_core::CostmapInter::CostmapInter;
@@ -86,8 +86,8 @@ namespace polite_inter
 
         boost::mutex vision_cfg_mtx_;
 
-        void reconfigure(polite_inter::PoliteInterConfig &config, uint32_t level);
+        void reconfigure(aggressive_inter::AggressiveInterConfig &config, uint32_t level);
     };
 }
 
-#endif // POLITE_INTER_H_
+#endif // aggressive_inter_H_
