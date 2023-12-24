@@ -66,6 +66,13 @@ namespace sideways_inter
          */
         void initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros, costmap_2d::Costmap2DROS *local_costmap_ros);
 
+
+
+            /**
+         * @brief Makes the robot move back a specified distance
+         * @param distance the distance in emtres we want the robot to moev back
+         */
+        
     private:
         // storage for setPlan
         ros::ServiceClient get_dump_client_;
@@ -77,6 +84,8 @@ namespace sideways_inter
 
         // max vision
         double vision_limit_ = 0.2;
+
+        ros::NodeHandle nh_;
 
         // min poses in path
         size_t min_poses_ = 1;
