@@ -18,8 +18,7 @@ namespace sideways_inter
     bool new_goal_set_ = false;
     double distance_threshold = 2.0;  // Set the distance threshold as needed
     double distance_slowdown = 8.0;  // Set the slowdown distance threshold as needed
-    double angle_threshold = 2 * M_PI;  // Set the angle threshold as needed
-    double max_speed = 1.0;  // Set the maximum speed as needed
+    double max_speed = 2.0;  // Set the maximum speed as needed
     double min_speed = 0.2;  // Set the minimum speed as needed
 
     uint32_t sidewaysInter::makePlan(const geometry_msgs::PoseStamped &start, const geometry_msgs::PoseStamped &goal,
@@ -68,23 +67,23 @@ namespace sideways_inter
 
                             // Adjust speed based on distance
                             double speed_factor = 1.0;
-                            if (distance <= distance_slowdown)
+                            if (distance <= distance_slowdown && !new_goal_set_)
                             {
                                 ROS_ERROR("Pedestrian in 8m range detected, slowing down!");
                                 speed_factor = std::max(min_speed, 1.0 - (distance / distance_slowdown));
                                 speed_factor = std::min(speed_factor, max_speed);
-                            }
+                            
 
                             // Add velocity information to the plan
                             geometry_msgs::Twist velocity;
                             velocity.linear.x = speed_factor;
-
+                            
                             // Publish velocity information
                             vel_pub_.publish(velocity);
-
+                            }
                             //ROS_ERROR("Location: x: %f, y: %f, z: %f, Distance: %f", point.location.x, point.location.y, point.location.z, distance);
                             // Check if the pedestrian is 2 meters or nearer (adjust to desired distance)
-                            if ((distance <= distance_threshold) && !new_goal_set_)
+                            if ((distance <= distance_threshold))
                             {
 
                                 //ROS_ERROR("Condition Satisfied. Distance: %f", distance);
@@ -96,7 +95,7 @@ namespace sideways_inter
                                     double theta = tf::getYaw(temp_goal.pose.orientation);
                                     //double sideways_angle = theta + (M_PI / 2.0);  // Rotate by π/4 radians
                                     temp_goal.pose.position.x -= 1.0 * cos(theta + M_PI / 4.0);
-                                    temp_goal.pose.position.y -= 1.0 * sin(theta + M_PI / 4.0);
+                                    temp_goal.pose.position.y -= 1.0* sin(theta + M_PI / 4.0);
 
                                     temp_goal.pose.orientation = tf::createQuaternionMsgFromYaw(tf::getYaw(temp_goal.pose.orientation));
                                     temp_goal.header.frame_id = start.header.frame_id;
@@ -153,7 +152,8 @@ namespace sideways_inter
         dynamic_reconfigure::Server<sideways_inter::sidewaysInterConfig> server;
         server.setCallback(boost::bind(&sidewaysInter::reconfigure, this, _1, _2));
 
-        vel_pub_ = nh_.advertise<geometry_msgs::Twist>("cmd_vel", 1);
+        vel_pub_ = ros::NodeHandle().advertise<geometry_msgs::Twist>("/jackal/cmd_vel", 1);
+
     }
 
     void sidewaysInter::reconfigure(sideways_inter::sidewaysInterConfig &config, uint32_t level)
