@@ -16,12 +16,14 @@ namespace sideways_inter
     const uint32_t INTERNAL_ERROR = 1;
     geometry_msgs::PoseStamped temp_goal;
     bool new_goal_set_ = false;
-    double distance_threshold = 2.0;  // Setze die Distanzschwelle nach Bedarf
-    double angle_threshold = 2* M_PI ;  // Setze die Winkeltoleranz nach Bedarf
-    
+    double distance_threshold = 2.0;  // Set the distance threshold as needed
+    double distance_slowdown = 8.0;  // Set the slowdown distance threshold as needed
+    double angle_threshold = 2 * M_PI;  // Set the angle threshold as needed
+    double max_speed = 1.0;  // Set the maximum speed as needed
+    double min_speed = 0.2;  // Set the minimum speed as needed
 
     uint32_t sidewaysInter::makePlan(const geometry_msgs::PoseStamped &start, const geometry_msgs::PoseStamped &goal,
-                                std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
+                                     std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
     {
         // Create a request message
         //costmap_2d::GetDump::Request request;
@@ -33,7 +35,7 @@ namespace sideways_inter
         costmap_2d::GetDump srv;
         // Lock the mutex for plan_
         boost::unique_lock<boost::mutex> lock(plan_mtx_);
-        
+
         double robot_x = start.pose.position.x;
         double robot_y = start.pose.position.y;
         //ROS_ERROR("Original Goal at the Start: x: %f, y: %f, z: %f, orientation: %f",
@@ -63,7 +65,22 @@ namespace sideways_inter
                         for (const auto &point : layer.points)
                         {
                             double distance = std::sqrt(std::pow(point.location.x - robot_x, 2) + std::pow(point.location.y - robot_y, 2));
-                         
+
+                            // Adjust speed based on distance
+                            double speed_factor = 1.0;
+                            if (distance <= distance_slowdown)
+                            {
+                                ROS_ERROR("Pedestrian in 8m range detected, slowing down!");
+                                speed_factor = std::max(min_speed, 1.0 - (distance / distance_slowdown));
+                                speed_factor = std::min(speed_factor, max_speed);
+                            }
+
+                            // Add velocity information to the plan
+                            geometry_msgs::Twist velocity;
+                            velocity.linear.x = speed_factor;
+
+                            // Publish velocity information
+                            vel_pub_.publish(velocity);
 
                             //ROS_ERROR("Location: x: %f, y: %f, z: %f, Distance: %f", point.location.x, point.location.y, point.location.z, distance);
                             // Check if the pedestrian is 2 meters or nearer (adjust to desired distance)
@@ -71,15 +88,15 @@ namespace sideways_inter
                             {
 
                                 //ROS_ERROR("Condition Satisfied. Distance: %f", distance);
-                                if(!new_goal_set_ ){
+                                if (!new_goal_set_)
+                                {
                                     //ROS_ERROR("Setting new goal");
                                     temp_goal = start;
 
                                     double theta = tf::getYaw(temp_goal.pose.orientation);
-                                    //double sideways_angle = theta + (M_PI / 2.0);  // Winkel um π/2 drehen
-                                    temp_goal.pose.position.x -= 1.0 * cos(theta +  M_PI / 4.0);
-                                    temp_goal.pose.position.y -= 1.0 * sin(theta +  M_PI / 4.0);
-                                   
+                                    //double sideways_angle = theta + (M_PI / 2.0);  // Rotate by π/4 radians
+                                    temp_goal.pose.position.x -= 1.0 * cos(theta + M_PI / 4.0);
+                                    temp_goal.pose.position.y -= 1.0 * sin(theta + M_PI / 4.0);
 
                                     temp_goal.pose.orientation = tf::createQuaternionMsgFromYaw(tf::getYaw(temp_goal.pose.orientation));
                                     temp_goal.header.frame_id = start.header.frame_id;
@@ -93,7 +110,7 @@ namespace sideways_inter
             if (new_goal_set_)
             {
                 double distance_to_temp_goal = std::sqrt(std::pow(temp_goal.pose.position.x - robot_x, 2) + std::pow(temp_goal.pose.position.y - robot_y, 2));
-                
+
                 if (distance_to_temp_goal <= 0.2) // Adjust the threshold as needed
                 {
                     ROS_ERROR("Reached temp_goal. Resetting goal.");
@@ -132,9 +149,11 @@ namespace sideways_inter
 
         // Create a service client for the GetDump service
         get_dump_client_ = nh_.serviceClient<costmap_2d::GetDump>("global_costmap/get_dump");
-    
+
         dynamic_reconfigure::Server<sideways_inter::sidewaysInterConfig> server;
         server.setCallback(boost::bind(&sidewaysInter::reconfigure, this, _1, _2));
+
+        vel_pub_ = nh_.advertise<geometry_msgs::Twist>("cmd_vel", 1);
     }
 
     void sidewaysInter::reconfigure(sideways_inter::sidewaysInterConfig &config, uint32_t level)

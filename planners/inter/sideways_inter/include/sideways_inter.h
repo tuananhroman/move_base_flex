@@ -86,6 +86,7 @@ namespace sideways_inter
         double vision_limit_ = 0.2;
 
         ros::NodeHandle nh_;
+        ros::Publisher vel_pub_; 
 
         // min poses in path
         size_t min_poses_ = 1;
