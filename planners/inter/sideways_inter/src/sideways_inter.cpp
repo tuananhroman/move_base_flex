@@ -16,7 +16,7 @@ namespace sideways_inter
     const uint32_t INTERNAL_ERROR = 1;
     geometry_msgs::PoseStamped temp_goal;
     bool new_goal_set_ = false;
-    double distance_threshold = 4.0;  // Setze die Distanzschwelle nach Bedarf
+    double distance_threshold = 2.0;  // Setze die Distanzschwelle nach Bedarf
     double angle_threshold = 2* M_PI ;  // Setze die Winkeltoleranz nach Bedarf
     
 
@@ -63,25 +63,22 @@ namespace sideways_inter
                         for (const auto &point : layer.points)
                         {
                             double distance = std::sqrt(std::pow(point.location.x - robot_x, 2) + std::pow(point.location.y - robot_y, 2));
-
-                            double relative_x = point.location.x - robot_x;
-                            double relative_y = point.location.y - robot_y;                            
+                         
 
                             //ROS_ERROR("Location: x: %f, y: %f, z: %f, Distance: %f", point.location.x, point.location.y, point.location.z, distance);
                             // Check if the pedestrian is 2 meters or nearer (adjust to desired distance)
-                            if ((relative_y > 0) && (distance <= distance_threshold) && !new_goal_set_)
+                            if ((distance <= distance_threshold) && !new_goal_set_)
                             {
-                            // Berechne den Winkel zwischen der aktuellen Ausrichtung des Roboters und der relativen Position des Fußgängers
-                                double angle_to_pedestrian = std::atan2(relative_y, relative_x); 
+
                                 //ROS_ERROR("Condition Satisfied. Distance: %f", distance);
-                                if(!new_goal_set_ && std::abs(angle_to_pedestrian) < angle_threshold){
+                                if(!new_goal_set_ ){
                                     //ROS_ERROR("Setting new goal");
                                     temp_goal = start;
 
                                     double theta = tf::getYaw(temp_goal.pose.orientation);
                                     //double sideways_angle = theta + (M_PI / 2.0);  // Winkel um π/2 drehen
-                                    temp_goal.pose.position.x -= 1.0 * cos(theta);
-                                    temp_goal.pose.position.y -= 1.0 * sin(theta);
+                                    temp_goal.pose.position.x -= 1.0 * cos(theta +  M_PI / 4.0);
+                                    temp_goal.pose.position.y -= 1.0 * sin(theta +  M_PI / 4.0);
                                    
 
                                     temp_goal.pose.orientation = tf::createQuaternionMsgFromYaw(tf::getYaw(temp_goal.pose.orientation));
