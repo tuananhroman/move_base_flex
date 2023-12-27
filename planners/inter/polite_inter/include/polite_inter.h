@@ -90,6 +90,7 @@ namespace polite_inter
         double cautious_speed_ = 0.1;
         double ped_minimum_distance_ = 2.0;
         double temp_goal_distance_ = 2.0;
+        double temp_goal_tolerance_ = 0.2;
 
         boost::mutex vision_cfg_mtx_;
 

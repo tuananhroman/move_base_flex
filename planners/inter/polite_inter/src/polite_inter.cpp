@@ -68,33 +68,34 @@ namespace polite_inter
                             double distance = std::sqrt(std::pow(point.location.x - robot_x, 2) + std::pow(point.location.y - robot_y, 2))+ std::pow(point.location.z - robot_z, 2);
                             //ROS_ERROR("Location: x: %f, y: %f, z: %f, Distance: %f", point.location.x, point.location.y, point.location.z, distance);
                             //initialize speed to be normal again
-                            geometry_msgs::Twist new_speed;
-                            new_speed.linear.x = linear_x;
-                            new_speed.linear.y = linear_y;
-                            new_speed.linear.z = linear_z;
-                            // Check if the pedestrian is at minimum distance or nearer (in metres)
+                            geometry_msgs::Twist new_velocity;
+                            new_velocity.linear.x = linear_x;
+                            new_velocity.linear.y = linear_y;
+                            new_velocity.linear.z = linear_z;
+                            // Check if the pedestrian is in detection range to slow down
                             if (distance <= caution_detection_range_)
                             {
                                 //apply cautious_speed_ as a multiplier
                                 // Update the linear velocities
-                                new_speed.linear.x = std::min(linear_x,(cautious_speed_/linear_x));
-                                new_speed.linear.y = std::min(linear_y,(cautious_speed_/linear_y));
-                                new_speed.linear.z = std::min(linear_z,(cautious_speed_/linear_z));
+                                new_velocity.linear.x = std::min(linear_x,(cautious_speed_/linear_x));
+                                new_velocity.linear.y = std::min(linear_y,(cautious_speed_/linear_y));
+                                new_velocity.linear.z = std::min(linear_z,(cautious_speed_/linear_z));
                             }
-                            ROS_ERROR("Publishing velocity command: linear_x = %f, linear_y = %f, linear_z = %f",
-          new_speed.linear.x, new_speed.linear.y, new_speed.linear.z);
-                            vel_pub_.publish(new_speed);
+                            //ROS_ERROR("Current velocity: linear_x = %f, linear_y = %f, linear_z = %f",new_speed.linear.x, new_speed.linear.y, new_speed.linear.z);
+                            vel_pub_.publish(new_velocity);
+                            // Check if the pedestrian is in range to set temp goal and move back
                             if ((distance <= ped_minimum_distance_) && !new_goal_set_)
                             {
-                                ROS_ERROR("Pedestrian detected. Distance: %f", distance);
+                                ROS_INFO("Pedestrian detected. Distance: %f", distance);
                                 if(!new_goal_set_){
-                                    ROS_ERROR("Setting new temp_goal");
+                                    ROS_INFO("Setting new temp_goal");
                                     temp_goal = start;
                                     double theta = tf::getYaw(temp_goal.pose.orientation);
                                     temp_goal.pose.position.x -= temp_goal_distance_ * cos(theta);
                                     temp_goal.pose.position.y -= temp_goal_distance_ * sin(theta);
                                     temp_goal.pose.orientation = tf::createQuaternionMsgFromYaw(tf::getYaw(temp_goal.pose.orientation));
                                     temp_goal.header.frame_id = start.header.frame_id;
+                                    //ROS_ERROR("Position: x = %f, y = %f, z = %f", temp_goal.pose.position.x, temp_goal.pose.position.y, temp_goal.pose.position.z);
                                     new_goal_set_ = true;
                                 }
                             }
@@ -106,14 +107,11 @@ namespace polite_inter
             {
                 double distance_to_temp_goal = std::sqrt(std::pow(temp_goal.pose.position.x - robot_x, 2) + std::pow(temp_goal.pose.position.y - robot_y, 2));
                 
-                if (distance_to_temp_goal <= 0.2) // Adjust the threshold as needed
+                if (distance_to_temp_goal <= temp_goal_tolerance_)
                 {
-                    ROS_ERROR("Reached temp_goal. Resetting goal.");
+                    ROS_INFO("Reached temp_goal. Resetting goal.");
                     new_goal_set_ = false;
                 }
-                //ROS_ERROR("Setting new goal");
-                //ROS_ERROR("Position: x = %f, y = %f, z = %f", temp_goal.pose.position.x, temp_goal.pose.position.y, temp_goal.pose.position.z);
-
                 // Clear the existing plan and add temp_goal
                 plan.clear();
                 plan.push_back(temp_goal);
@@ -164,5 +162,6 @@ namespace polite_inter
         temp_goal_distance_ = config.temp_goal_distance;
         caution_detection_range_ = config.caution_detection_range;
         cautious_speed_ = config.cautious_speed;
+        temp_goal_tolerance_ = config.temp_goal_tolerance;
     }
 }
