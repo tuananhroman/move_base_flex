@@ -64,15 +64,18 @@ namespace polite_inter
          * @param costmap_ros A pointer to the ROS wrapper of the costmap to use for planning
          */
         void initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros, costmap_2d::Costmap2DROS *local_costmap_ros);
-
-            /**
-         * @brief Makes the robot move back a specified distance
-         * @param distance the distance in emtres we want the robot to moev back
+        /**
+         * @brief Gets the current velocity for robot
+         * @param geometry_msgs message from cmd_vel
          */
+        void cmdVelCallback(const geometry_msgs::Twist& msg);
+
 
     private:
         // storage for setPlan
         ros::ServiceClient get_dump_client_;
+        ros::Publisher vel_pub_;
+        ros::Subscriber vel_sub_;
         std::vector<geometry_msgs::PoseStamped> plan_;
         boost::mutex plan_mtx_;
 
@@ -81,8 +84,12 @@ namespace polite_inter
 
         ros::NodeHandle nh_;
 
-        // min poses in path
-        size_t min_poses_ = 1;
+        // default values
+        // change in PoliteInter.cfg to your preference
+        double caution_detection_range_ = 10.0;
+        double cautious_speed_ = 0.1;
+        double ped_minimum_distance_ = 2.0;
+        double temp_goal_distance_ = 2.0;
 
         boost::mutex vision_cfg_mtx_;
 

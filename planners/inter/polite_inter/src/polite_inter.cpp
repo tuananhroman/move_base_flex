@@ -4,6 +4,7 @@
 #include <costmap_2d/costmap_2d_publisher.h>
 #include <pluginlib/class_list_macros.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <geometry_msgs/Twist.h>
 #include <tf2/LinearMath/Quaternion.h>
 
 PLUGINLIB_EXPORT_CLASS(polite_inter::PoliteInter, mbf_costmap_core::CostmapInter)
@@ -16,6 +17,7 @@ namespace polite_inter
     const uint32_t INTERNAL_ERROR = 1;
     geometry_msgs::PoseStamped temp_goal;
     bool new_goal_set_ = false;
+    geometry_msgs::Twist current_cmd_vel_;
     
 
     uint32_t PoliteInter::makePlan(const geometry_msgs::PoseStamped &start, const geometry_msgs::PoseStamped &goal,
@@ -34,9 +36,12 @@ namespace polite_inter
         
         double robot_x = start.pose.position.x;
         double robot_y = start.pose.position.y;
+        double robot_z = start.pose.position.z;
         //ROS_ERROR("Original Goal at the Start: x: %f, y: %f, z: %f, orientation: %f",
         //            goal.pose.position.x, goal.pose.position.y, goal.pose.position.z, tf::getYaw(goal.pose.orientation));
-
+        double linear_x = current_cmd_vel_.linear.x;
+        double linear_y = current_cmd_vel_.linear.y;
+        double linear_z = current_cmd_vel_.linear.z;
         // Call the GetDump service
         if (get_dump_client_.call(srv))
         {
@@ -60,18 +65,34 @@ namespace polite_inter
                     {
                         for (const auto &point : layer.points)
                         {
-                            double distance = std::sqrt(std::pow(point.location.x - robot_x, 2) + std::pow(point.location.y - robot_y, 2));
+                            double distance = std::sqrt(std::pow(point.location.x - robot_x, 2) + std::pow(point.location.y - robot_y, 2))+ std::pow(point.location.z - robot_z, 2);
                             //ROS_ERROR("Location: x: %f, y: %f, z: %f, Distance: %f", point.location.x, point.location.y, point.location.z, distance);
-                            // Check if the pedestrian is 2 meters or nearer (adjust to desired distance)
-                            if ((distance <= 2.0) && !new_goal_set_)
+                            //initialize speed to be normal again
+                            geometry_msgs::Twist new_speed;
+                            new_speed.linear.x = linear_x;
+                            new_speed.linear.y = linear_y;
+                            new_speed.linear.z = linear_z;
+                            // Check if the pedestrian is at minimum distance or nearer (in metres)
+                            if (distance <= caution_detection_range_)
                             {
-                                ROS_ERROR("Condition Satisfied. Distance: %f", distance);
+                                //apply cautious_speed_ as a multiplier
+                                // Update the linear velocities
+                                new_speed.linear.x = std::min(linear_x,(cautious_speed_/linear_x));
+                                new_speed.linear.y = std::min(linear_y,(cautious_speed_/linear_y));
+                                new_speed.linear.z = std::min(linear_z,(cautious_speed_/linear_z));
+                            }
+                            ROS_ERROR("Publishing velocity command: linear_x = %f, linear_y = %f, linear_z = %f",
+          new_speed.linear.x, new_speed.linear.y, new_speed.linear.z);
+                            vel_pub_.publish(new_speed);
+                            if ((distance <= ped_minimum_distance_) && !new_goal_set_)
+                            {
+                                ROS_ERROR("Pedestrian detected. Distance: %f", distance);
                                 if(!new_goal_set_){
-                                    ROS_ERROR("Setting new goal");
+                                    ROS_ERROR("Setting new temp_goal");
                                     temp_goal = start;
                                     double theta = tf::getYaw(temp_goal.pose.orientation);
-                                    temp_goal.pose.position.x -= 2.0 * cos(theta);
-                                    temp_goal.pose.position.y -= 2.0 * sin(theta);
+                                    temp_goal.pose.position.x -= temp_goal_distance_ * cos(theta);
+                                    temp_goal.pose.position.y -= temp_goal_distance_ * sin(theta);
                                     temp_goal.pose.orientation = tf::createQuaternionMsgFromYaw(tf::getYaw(temp_goal.pose.orientation));
                                     temp_goal.header.frame_id = start.header.frame_id;
                                     new_goal_set_ = true;
@@ -118,19 +139,30 @@ namespace polite_inter
     void PoliteInter::initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros, costmap_2d::Costmap2DROS *local_costmap_ros)
     {
         this->name = name;
+        std::string node_namespace = ros::this_node::getNamespace();
+        std::string cmd_vel_topic = node_namespace + "/cmd_vel";
 
         nh_ = ros::NodeHandle("~");
 
         // Create a service client for the GetDump service
         get_dump_client_ = nh_.serviceClient<costmap_2d::GetDump>("global_costmap/get_dump");
-    
+        vel_pub_ = nh_.advertise<geometry_msgs::Twist>(cmd_vel_topic, 1);
+        vel_sub_ = nh_.subscribe(cmd_vel_topic, 1, &PoliteInter::cmdVelCallback, this);
         dynamic_reconfigure::Server<polite_inter::PoliteInterConfig> server;
         server.setCallback(boost::bind(&PoliteInter::reconfigure, this, _1, _2));
+    }
+
+    void PoliteInter::cmdVelCallback(const geometry_msgs::Twist& msg)
+    {
+        current_cmd_vel_ = msg;
     }
 
     void PoliteInter::reconfigure(polite_inter::PoliteInterConfig &config, uint32_t level)
     {
         boost::unique_lock<boost::mutex> lock(vision_cfg_mtx_);
-        min_poses_ = config.min_poses;
+        ped_minimum_distance_ = config.ped_minimum_distance;
+        temp_goal_distance_ = config.temp_goal_distance;
+        caution_detection_range_ = config.caution_detection_range;
+        cautious_speed_ = config.cautious_speed;
     }
 }
