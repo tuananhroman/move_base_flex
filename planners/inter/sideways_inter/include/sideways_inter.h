@@ -73,20 +73,31 @@ namespace sideways_inter
          * @param distance the distance in emtres we want the robot to moev back
          */
         
+
+        void cmdVelCallback(const geometry_msgs::Twist & msg);
+        void cmdVelCallback2(const geometry_msgs::Twist & msg2);
+
+    public:
+        ros::Publisher  vel_pub_;
+        ros::Subscriber vel_sub_;
+        ros::Subscriber vel_sub_2;
     private:
         // storage for setPlan
         ros::ServiceClient get_dump_client_;
         std::vector<geometry_msgs::PoseStamped> plan_;
         boost::mutex plan_mtx_;
 
+
+
         // could be used for nh
         std::string name;
+      
 
         // max vision
         double vision_limit_ = 0.2;
 
         ros::NodeHandle nh_;
-        ros::Publisher vel_pub_; 
+   
 
         // min poses in path
         size_t min_poses_ = 1;

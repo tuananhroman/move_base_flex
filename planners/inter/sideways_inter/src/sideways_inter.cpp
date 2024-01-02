@@ -4,26 +4,41 @@
 #include <costmap_2d/costmap_2d_publisher.h>
 #include <pluginlib/class_list_macros.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <geometry_msgs/Twist.h>
 #include <tf2/LinearMath/Quaternion.h>
+
+
+geometry_msgs::Twist actual_cmd_vel;
+geometry_msgs::Twist mod_cmd_vel;
+
 
 PLUGINLIB_EXPORT_CLASS(sideways_inter::sidewaysInter, mbf_costmap_core::CostmapInter)
 
 namespace sideways_inter
 {
-
+                     ////////////////////////////////////////TEST 
     ros::ServiceClient get_dump_client_;
     const uint32_t SUCCESS = 0;
     const uint32_t INTERNAL_ERROR = 1;
     geometry_msgs::PoseStamped temp_goal;
+    geometry_msgs::Twist msg;
     bool new_goal_set_ = false;
     double distance_threshold = 2.0;  // Set the distance threshold as needed
     double distance_slowdown = 8.0;  // Set the slowdown distance threshold as needed
     double max_speed = 2.0;  // Set the maximum speed as needed
     double min_speed = 0.2;  // Set the minimum speed as needed
 
+
+    
+    
+
     uint32_t sidewaysInter::makePlan(const geometry_msgs::PoseStamped &start, const geometry_msgs::PoseStamped &goal,
                                      std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
     {
+
+
+
+        //vel_pub_.publish(actual_cmd_vel);       
         // Create a request message
         //costmap_2d::GetDump::Request request;
         // No need to set any specific fields in the request for this example
@@ -31,14 +46,28 @@ namespace sideways_inter
         // Create a response message
         //costmap_2d::GetDump::Response response;
 
+        double linear_x = actual_cmd_vel.linear.x;
+        double linear_y = actual_cmd_vel.linear.y;
+        double linear_z = actual_cmd_vel.linear.z;
+
+
+        mod_cmd_vel.linear.x = 0.5*linear_x;
+        mod_cmd_vel.linear.y = 0.5*linear_y;
+        mod_cmd_vel.linear.z = 0.5*linear_z;
+
         costmap_2d::GetDump srv;
         // Lock the mutex for plan_
         boost::unique_lock<boost::mutex> lock(plan_mtx_);
+       
+
+
+        
+           
 
         double robot_x = start.pose.position.x;
         double robot_y = start.pose.position.y;
         //ROS_ERROR("Original Goal at the Start: x: %f, y: %f, z: %f, orientation: %f",
-        //            goal.pose.position.x, goal.pose.position.y, goal.pose.position.z, tf::getYaw(goal.pose.orientation));
+        //goal.pose.position.x, goal.pose.position.y, goal.pose.position.z, tf::getYaw(goal.pose.orientation));
 
         // Call the GetDump service
         if (get_dump_client_.call(srv))
@@ -70,16 +99,11 @@ namespace sideways_inter
                             if (distance <= distance_slowdown && !new_goal_set_)
                             {
                                 ROS_ERROR("Pedestrian in 8m range detected, slowing down!");
-                                speed_factor = std::max(min_speed, 1.0 - (distance / distance_slowdown));
-                                speed_factor = std::min(speed_factor, max_speed);
                             
-
-                            // Add velocity information to the plan
-                            geometry_msgs::Twist velocity;
-                            velocity.linear.x = speed_factor;
-                            
-                            // Publish velocity information
-                            vel_pub_.publish(velocity);
+                                vel_pub_.publish(mod_cmd_vel);
+                            }
+                            else{
+                                vel_pub_.publish(actual_cmd_vel);
                             }
                             //ROS_ERROR("Location: x: %f, y: %f, z: %f, Distance: %f", point.location.x, point.location.y, point.location.z, distance);
                             // Check if the pedestrian is 2 meters or nearer (adjust to desired distance)
@@ -133,6 +157,28 @@ namespace sideways_inter
         }
     }
 
+
+
+
+
+    void sidewaysInter::cmdVelCallback(const geometry_msgs::Twist& msg)
+    {
+        // Hier kannst du den empfangenen cmd_vel-Wert bearbeiten
+        ROS_ERROR("modified cmd_vel: linear.x = %f, angular.z = %f", mod_cmd_vel.linear.x, mod_cmd_vel.angular.z);
+       
+        mod_cmd_vel = msg;
+        
+    }
+
+    void sidewaysInter::cmdVelCallback2(const geometry_msgs::Twist& msg2)
+    {
+        // Hier kannst du den empfangenen cmd_vel-Wert bearbeiten
+        ROS_ERROR("actual cmd_vel: linear.x = %f, angular.z = %f", actual_cmd_vel.linear.x, actual_cmd_vel.angular.z);
+        actual_cmd_vel = msg2;
+ 
+    }
+
+
     bool sidewaysInter::setPlan(const std::vector<geometry_msgs::PoseStamped> &plan)
     {
         boost::unique_lock<boost::mutex> lock(plan_mtx_);
@@ -151,8 +197,10 @@ namespace sideways_inter
 
         dynamic_reconfigure::Server<sideways_inter::sidewaysInterConfig> server;
         server.setCallback(boost::bind(&sidewaysInter::reconfigure, this, _1, _2));
-
-        vel_pub_ = ros::NodeHandle().advertise<geometry_msgs::Twist>("/jackal/cmd_vel", 1);
+        vel_sub_2= ros::NodeHandle().subscribe("/jackal/cmd_vel2", 1, &sidewaysInter::cmdVelCallback2, this);
+        vel_sub_= ros::NodeHandle().subscribe("/jackal/cmd_vel", 1, &sidewaysInter::cmdVelCallback, this);
+        vel_pub_= ros::NodeHandle().advertise<geometry_msgs::Twist>("/jackal/cmd_vel", 1);
+        server.setCallback(boost::bind(&sidewaysInter::reconfigure, this, _1, _2));
 
     }
 
