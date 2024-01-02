@@ -81,7 +81,7 @@ namespace polite_inter
                                 new_velocity.linear.y = std::min(linear_y,(cautious_speed_/linear_y));
                                 new_velocity.linear.z = std::min(linear_z,(cautious_speed_/linear_z));
                             }
-                            //ROS_ERROR("Current velocity: linear_x = %f, linear_y = %f, linear_z = %f",new_speed.linear.x, new_speed.linear.y, new_speed.linear.z);
+                            //ROS_ERROR("Current velocity: linear_x = %f, linear_y = %f, linear_z = %f",new_velocity.linear.x, new_velocity.linear.y, new_velocity.linear.z);
                             vel_pub_.publish(new_velocity);
                             // Check if the pedestrian is in range to set temp goal and move back
                             if ((distance <= ped_minimum_distance_) && !new_goal_set_)
