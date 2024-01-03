@@ -15,6 +15,8 @@
 #include <costmap_2d/array_parser.h>
 #include<geometry_msgs/Point32.h>
 #include <string>
+#include <dynamic_reconfigure/Reconfigure.h>
+#include <dynamic_reconfigure/Config.h>
 
 PLUGINLIB_EXPORT_CLASS(polite_inter::PoliteInter, mbf_costmap_core::CostmapInter)
 
@@ -22,6 +24,7 @@ namespace polite_inter
 {
 
     ros::ServiceClient get_dump_client_;
+    ros::ServiceClient setParametersClient_;
     const uint32_t SUCCESS = 0;
     const uint32_t INTERNAL_ERROR = 1;
     geometry_msgs::PoseStamped temp_goal;
@@ -33,12 +36,6 @@ namespace polite_inter
     uint32_t PoliteInter::makePlan(const geometry_msgs::PoseStamped &start, const geometry_msgs::PoseStamped &goal,
                                 std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
     {
-        if (!nh_.getParam("/jackal/move_base_flex/TebLocalPlannerROS/max_vel_x", max_vel_x_param_))
-        {
-            ROS_ERROR("Failed to get parameter '/jackal/move_base_flex/TebLocalPlannerROS/max_vel_x'");
-            return 0;
-        }
-        ROS_ERROR("TEST, %f", max_vel_x_param_);
         // Create a request message
         //costmap_2d::GetDump::Request request;
         // No need to set any specific fields in the request for this example
@@ -83,8 +80,18 @@ namespace polite_inter
                             //nh_.setParam("/jackal/move_base_flex/TebLocalPlannerROS/max_vel_x", max_vel_x_param_);
                             if (distance <= caution_detection_range_)
                             {
-                                nh_.setParam("/jackal/move_base_flex/TebLocalPlannerROS/weight_max_vel_x", changed_max_vel_x_param_);
-                                nh_.setParam("/jackal/move_base_flex/TebLocalPlannerROS/max_vel_x", changed_max_vel_x_param_);
+                                dynamic_reconfigure::Reconfigure reconfig;
+                                dynamic_reconfigure::DoubleParameter double_param;
+                                dynamic_reconfigure::Config conf;
+                                double_param.name = "max_vel_x";
+                                double_param.value = changed_max_vel_x_param_;
+                                conf.doubles.push_back(double_param);
+                                reconfig.request.config = conf;
+                                if (setParametersClient_.call(reconfig)) {
+                                    continue;
+                                } else {
+                                    ROS_ERROR("Failed to call set_parameters service");
+                                }
                             }
                             //ROS_ERROR("Current velocity: linear_x = %f, linear_y = %f, linear_z = %f",new_velocity.linear.x, new_velocity.linear.y, new_velocity.linear.z);
                             // Check if the pedestrian is in range to set temp goal and move back
@@ -151,11 +158,11 @@ namespace polite_inter
             ROS_ERROR("Failed to get parameter '/jackal/move_base_flex/TebLocalPlannerROS/max_vel_x'");
             return;
         }
-        changed_max_vel_x_param_ = (cautious_speed_/max_vel_x_param_);
         get_dump_client_ = nh_.serviceClient<costmap_2d::GetDump>("global_costmap/get_dump");  
-        vel_pub_ = nh_.advertise<geometry_msgs::Twist>("/jackal/move_base_flex/TebLocalPlannerROS/max_vel_x", 1);
+        setParametersClient_ = nh_.serviceClient<dynamic_reconfigure::Reconfigure>("/jackal/move_base_flex/TebLocalPlannerROS/set_parameters");
         dynamic_reconfigure::Server<polite_inter::PoliteInterConfig> server;
         server.setCallback(boost::bind(&PoliteInter::reconfigure, this, _1, _2));
+        changed_max_vel_x_param_ = (cautious_speed_/max_vel_x_param_);
     }
 
     void PoliteInter::reconfigure(polite_inter::PoliteInterConfig &config, uint32_t level)
@@ -167,4 +174,5 @@ namespace polite_inter
         cautious_speed_ = config.cautious_speed;
         temp_goal_tolerance_ = config.temp_goal_tolerance;
     }
+
 }
