@@ -1,22 +1,11 @@
 #include "../include/polite_inter.h"
 #include <std_msgs/Int32.h>
-#include <costmap_2d/semantic_layer.h>
-#include <costmap_2d/GetDump.h>
-#include <costmap_2d/costmap_2d_publisher.h>
 #include <pluginlib/class_list_macros.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
-#include <geometry_msgs/Twist.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <ros/ros.h>
 #include <ros/master.h>
-#include <costmap_2d/costmap_math.h>
-#include <boost/tokenizer.hpp>
-#include <boost/foreach.hpp>
-#include <boost/algorithm/string.hpp>
-#include <costmap_2d/footprint.h>
-#include <costmap_2d/array_parser.h>
 #include <geometry_msgs/Point32.h>
-#include <string>
 #include <dynamic_reconfigure/Reconfigure.h>
 #include <dynamic_reconfigure/Config.h>
 
