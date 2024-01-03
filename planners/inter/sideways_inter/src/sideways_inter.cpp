@@ -1,183 +1,93 @@
 #include "../include/sideways_inter.h"
-#include <costmap_2d/semantic_layer.h>
-#include <costmap_2d/GetDump.h>
-#include <costmap_2d/costmap_2d_publisher.h>
+#include <std_msgs/Int32.h>
 #include <pluginlib/class_list_macros.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
-#include <geometry_msgs/Twist.h>
 #include <tf2/LinearMath/Quaternion.h>
-
-
-geometry_msgs::Twist actual_cmd_vel;
-geometry_msgs::Twist mod_cmd_vel;
-
+#include <ros/ros.h>
+#include <ros/master.h>
+#include <geometry_msgs/Point32.h>
+#include <dynamic_reconfigure/Reconfigure.h>
+#include <dynamic_reconfigure/Config.h>
 
 PLUGINLIB_EXPORT_CLASS(sideways_inter::sidewaysInter, mbf_costmap_core::CostmapInter)
 
 namespace sideways_inter
 {
-                     ////////////////////////////////////////TEST 
-    ros::ServiceClient get_dump_client_;
+    ros::Subscriber subscriber_;
+    ros::ServiceClient setParametersClient_;
     const uint32_t SUCCESS = 0;
     const uint32_t INTERNAL_ERROR = 1;
     geometry_msgs::PoseStamped temp_goal;
-    geometry_msgs::Twist msg;
     bool new_goal_set_ = false;
-    double distance_threshold = 2.0;  // Set the distance threshold as needed
-    double distance_slowdown = 8.0;  // Set the slowdown distance threshold as needed
-    double max_speed = 2.0;  // Set the maximum speed as needed
-    double min_speed = 0.2;  // Set the minimum speed as needed
-
-
-    
-    
+    double max_vel_x_param_;
+    double changed_max_vel_x_param_;
+    dynamic_reconfigure::Reconfigure reconfig_;
+    dynamic_reconfigure::DoubleParameter double_param_;
+    dynamic_reconfigure::Config conf_;
+    double final_value;
+    std::vector<geometry_msgs::Point32> semanticPoints;
 
     uint32_t sidewaysInter::makePlan(const geometry_msgs::PoseStamped &start, const geometry_msgs::PoseStamped &goal,
-                                     std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
+                                   std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
     {
-
-
-
-        //vel_pub_.publish(actual_cmd_vel);       
-        // Create a request message
-        //costmap_2d::GetDump::Request request;
-        // No need to set any specific fields in the request for this example
-
-        // Create a response message
-        //costmap_2d::GetDump::Response response;
-
-        double linear_x = actual_cmd_vel.linear.x;
-        double linear_y = actual_cmd_vel.linear.y;
-        double linear_z = actual_cmd_vel.linear.z;
-
-
-        mod_cmd_vel.linear.x = 0.5*linear_x;
-        mod_cmd_vel.linear.y = 0.5*linear_y;
-        mod_cmd_vel.linear.z = 0.5*linear_z;
-
-        costmap_2d::GetDump srv;
-        // Lock the mutex for plan_
         boost::unique_lock<boost::mutex> lock(plan_mtx_);
-       
-
-
-        
-           
 
         double robot_x = start.pose.position.x;
         double robot_y = start.pose.position.y;
-        //ROS_ERROR("Original Goal at the Start: x: %f, y: %f, z: %f, orientation: %f",
-        //goal.pose.position.x, goal.pose.position.y, goal.pose.position.z, tf::getYaw(goal.pose.orientation));
-
-        // Call the GetDump service
-        if (get_dump_client_.call(srv))
+        double robot_z = start.pose.position.z;
+        for (const auto &point : semanticPoints)
         {
-            //ROS_ERROR("GetDump service call successful");
-
-            // Access the semantic layers from the response
-            auto semantic_layers = srv.response.semantic_layers;
-
-            // Process the semantic layers
-            for (const auto &semantic_layer : semantic_layers)
+            double distance = std::sqrt(std::pow(point.x - robot_x, 2) + std::pow(point.y - robot_y, 2)) + std::pow(point.z - robot_z, 2);
+            // Check if the pedestrian is in range to set temporary goal and move back
+            if ((distance <= ped_minimum_distance_) && !new_goal_set_)
             {
-                //ROS_ERROR("Semantic Layer Names:");
-
-                // Iterate through the layers
-                for (const auto &layer : semantic_layer.layers)
+                ROS_INFO("Pedestrian detected. Distance: %f", distance);
+                if (!new_goal_set_)
                 {
-                    //ROS_ERROR("Layer Name: %s", layer.type.c_str());
-
-                    // Iterate through the points in each layer
-                    if (layer.type == "pedestrian")
-                    {
-                        for (const auto &point : layer.points)
-                        {
-                            double distance = std::sqrt(std::pow(point.location.x - robot_x, 2) + std::pow(point.location.y - robot_y, 2));
-
-                            // Adjust speed based on distance
-                            double speed_factor = 1.0;
-                            if (distance <= distance_slowdown && !new_goal_set_)
-                            {
-                                ROS_ERROR("Pedestrian in 8m range detected, slowing down!");
-                            
-                                vel_pub_.publish(mod_cmd_vel);
-                            }
-                            else{
-                                vel_pub_.publish(actual_cmd_vel);
-                            }
-                            //ROS_ERROR("Location: x: %f, y: %f, z: %f, Distance: %f", point.location.x, point.location.y, point.location.z, distance);
-                            // Check if the pedestrian is 2 meters or nearer (adjust to desired distance)
-                            if ((distance <= distance_threshold))
-                            {
-
-                                //ROS_ERROR("Condition Satisfied. Distance: %f", distance);
-                                if (!new_goal_set_)
-                                {
-                                    //ROS_ERROR("Setting new goal");
-                                    temp_goal = start;
-
-                                    double theta = tf::getYaw(temp_goal.pose.orientation);
-                                    //double sideways_angle = theta + (M_PI / 2.0);  // Rotate by π/4 radians
-                                    temp_goal.pose.position.x -= 1.0 * cos(theta + M_PI / 4.0);
-                                    temp_goal.pose.position.y -= 1.0* sin(theta + M_PI / 4.0);
-
-                                    temp_goal.pose.orientation = tf::createQuaternionMsgFromYaw(tf::getYaw(temp_goal.pose.orientation));
-                                    temp_goal.header.frame_id = start.header.frame_id;
-                                    new_goal_set_ = true;
-                                }
-                            }
-                        }
-                    }
+                    ROS_INFO("Setting new temp_goal");
+                    temp_goal = start;
+                    // calculating position for temporary goal
+                    double theta = tf::getYaw(temp_goal.pose.orientation);
+                    temp_goal.pose.position.x -= temp_goal_distance_ * cos(theta + M_PI / 4.0);
+                    temp_goal.pose.position.y -= temp_goal_distance_ * sin(theta + M_PI / 4.0);
+                    temp_goal.pose.orientation = tf::createQuaternionMsgFromYaw(tf::getYaw(temp_goal.pose.orientation));
+                    temp_goal.header.frame_id = start.header.frame_id;
+                    new_goal_set_ = true;
                 }
             }
-            if (new_goal_set_)
+            // reset max_vel_x to normal value
+            double_param_.name = "max_vel_x";
+            final_value = max_vel_x_param_;
+            if (distance <= caution_detection_range_)
             {
-                double distance_to_temp_goal = std::sqrt(std::pow(temp_goal.pose.position.x - robot_x, 2) + std::pow(temp_goal.pose.position.y - robot_y, 2));
-
-                if (distance_to_temp_goal <= 0.2) // Adjust the threshold as needed
-                {
-                    ROS_ERROR("Reached temp_goal. Resetting goal.");
-                    new_goal_set_ = false;
-                }
-                //ROS_ERROR("Setting new goal");
-                //ROS_ERROR("Position: x = %f, y = %f, z = %f", temp_goal.pose.position.x, temp_goal.pose.position.y, temp_goal.pose.position.z);
-
-                // Clear the existing plan and add temp_goal
-                plan.clear();
-                plan.push_back(temp_goal);
-                return 0;
+                // set max_vel_x to reduced value if peds are in range
+                final_value = changed_max_vel_x_param_;
             }
-            plan.insert(plan.end(), plan_.begin(), plan_.end());
+            // set max_vel_x parameter
+            double_param_.value = final_value;
+            conf_.doubles.clear();
+            conf_.doubles.push_back(double_param_);
+            reconfig_.request.config = conf_;
+            setParametersClient_.call(reconfig_);
+        }
+        if (new_goal_set_)
+        {
+            //calculate distance to temporary goal
+            double distance_to_temp_goal = std::sqrt(std::pow(temp_goal.pose.position.x - robot_x, 2) + std::pow(temp_goal.pose.position.y - robot_y, 2));
+
+            if (distance_to_temp_goal <= temp_goal_tolerance_)
+            {
+                ROS_INFO("Reached temp_goal. Resetting goal.");
+                new_goal_set_ = false;
+            }
+            // Clear the existing plan and add temp_goal
+            plan.clear();
+            plan.push_back(temp_goal);
             return 0;
         }
-        else
-        {
-            ROS_ERROR("Failed to call GetDump service");
-            return sideways_inter::INTERNAL_ERROR;
-        }
+        plan.insert(plan.end(), plan_.begin(), plan_.end());
+        return 0;
     }
-
-
-
-
-
-    void sidewaysInter::cmdVelCallback(const geometry_msgs::Twist& msg)
-    {
-        // Hier kannst du den empfangenen cmd_vel-Wert bearbeiten
-        ROS_ERROR("modified cmd_vel: linear.x = %f, angular.z = %f", mod_cmd_vel.linear.x, mod_cmd_vel.angular.z);
-       
-        mod_cmd_vel = msg;
-        
-    }
-
-    void sidewaysInter::cmdVelCallback2(const geometry_msgs::Twist& msg2)
-    {
-        // Hier kannst du den empfangenen cmd_vel-Wert bearbeiten
-        ROS_ERROR("actual cmd_vel: linear.x = %f, angular.z = %f", actual_cmd_vel.linear.x, actual_cmd_vel.angular.z);
-        actual_cmd_vel = msg2;
- 
-    }
-
 
     bool sidewaysInter::setPlan(const std::vector<geometry_msgs::PoseStamped> &plan)
     {
@@ -186,27 +96,83 @@ namespace sideways_inter
         return true;
     }
 
+    void sidewaysInter::semanticCallback(const pedsim_msgs::SemanticData::ConstPtr &message)
+    {
+        semanticPoints.clear();
+        for (const auto &point : message->points)
+        {
+            geometry_msgs::Point32 pedestrianPoint;
+            pedestrianPoint.x = point.location.x;
+            pedestrianPoint.y = point.location.y;
+            pedestrianPoint.z = point.location.z;
+
+            semanticPoints.push_back(pedestrianPoint);
+        }
+    }
+
     void sidewaysInter::initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros, costmap_2d::Costmap2DROS *local_costmap_ros)
     {
+
+        std::string keyword;
+        std::string local_planner_name;
+
+        if (!nh_.getParam("/jackal/local_planner", keyword))
+        {
+            ROS_ERROR("Failed to get parameter '/jackal/local_planner'");
+            return;
+        }
+
+        if(keyword=="teb"){
+            local_planner_name= "TebLocalPlannerROS";
+        }
+
+        if(keyword=="mpc"){
+            local_planner_name= "MpcLocalPlannerROS";
+        }
+
+        if(keyword=="dwa"){
+            local_planner_name= "DwaLocalPlannerROS";
+        }
+
+        if(keyword=="cohan"){
+            local_planner_name= "HAtebLocalPlannerROS";
+        }        
+
+
+
+
+        // Based on keyword teb,dwa,mpc,hateb set the ,,SetParametersClient"
+
+
         this->name = name;
-
+        std::string node_namespace = ros::this_node::getNamespace();
         nh_ = ros::NodeHandle("~");
-
-        // Create a service client for the GetDump service
-        get_dump_client_ = nh_.serviceClient<costmap_2d::GetDump>("global_costmap/get_dump");
+        // get the starting parameter for max_vel_x from our planner
+        std::string semanticLayer = "/pedsim_agents/semantic/pedestrian";
+        subscriber_ = nh_.subscribe(semanticLayer, 1, &sidewaysInter::semanticCallback, this);
+        if (!nh_.getParam("/jackal/move_base_flex/" + local_planner_name + "/max_vel_x", max_vel_x_param_))
+        {
+            ROS_ERROR("Failed to get parameter '/jackal/move_base_flex/LocalPlanner/max_vel_x'");
+            return;
+        }
+        
+        // Create service clients for the GetDump and Reconfigure services
+        setParametersClient_ = nh_.serviceClient<dynamic_reconfigure::Reconfigure>("/jackal/move_base_flex/" + local_planner_name + "/set_parameters");
 
         dynamic_reconfigure::Server<sideways_inter::sidewaysInterConfig> server;
         server.setCallback(boost::bind(&sidewaysInter::reconfigure, this, _1, _2));
-        vel_sub_2= ros::NodeHandle().subscribe("/jackal/cmd_vel2", 1, &sidewaysInter::cmdVelCallback2, this);
-        vel_sub_= ros::NodeHandle().subscribe("/jackal/cmd_vel", 1, &sidewaysInter::cmdVelCallback, this);
-        vel_pub_= ros::NodeHandle().advertise<geometry_msgs::Twist>("/jackal/cmd_vel", 1);
-        server.setCallback(boost::bind(&sidewaysInter::reconfigure, this, _1, _2));
-
+        // needs to be declared here because cautious_speed gets declared with reconfigure
+        changed_max_vel_x_param_ = (cautious_speed_ * max_vel_x_param_);
     }
 
     void sidewaysInter::reconfigure(sideways_inter::sidewaysInterConfig &config, uint32_t level)
     {
         boost::unique_lock<boost::mutex> lock(vision_cfg_mtx_);
-        min_poses_ = config.min_poses;
+        ped_minimum_distance_ = config.ped_minimum_distance;
+        temp_goal_distance_ = config.temp_goal_distance;
+        caution_detection_range_ = config.caution_detection_range;
+        cautious_speed_ = config.cautious_speed;
+        temp_goal_tolerance_ = config.temp_goal_tolerance;
     }
+
 }
