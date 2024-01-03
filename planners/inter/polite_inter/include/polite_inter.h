@@ -68,14 +68,12 @@ namespace polite_inter
          * @brief Gets the current velocity for robot
          * @param geometry_msgs message from cmd_vel
          */
-        void cmdVelCallback(const geometry_msgs::Twist& msg);
+        void updateTebParameters(std::string name, double value);
 
 
     private:
         // storage for setPlan
         ros::ServiceClient get_dump_client_;
-        ros::Publisher vel_pub_;
-        ros::Subscriber vel_sub_;
         std::vector<geometry_msgs::PoseStamped> plan_;
         boost::mutex plan_mtx_;
 
@@ -93,6 +91,7 @@ namespace polite_inter
         double temp_goal_tolerance_ = 0.2;
 
         boost::mutex vision_cfg_mtx_;
+        ros::ServiceClient setParametersClient_;
 
         void reconfigure(polite_inter::PoliteInterConfig &config, uint32_t level);
     };
