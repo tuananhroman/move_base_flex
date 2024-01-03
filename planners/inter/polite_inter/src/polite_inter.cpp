@@ -6,6 +6,15 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <geometry_msgs/Twist.h>
 #include <tf2/LinearMath/Quaternion.h>
+#include <ros/ros.h>
+#include<costmap_2d/costmap_math.h>
+#include <boost/tokenizer.hpp>
+#include <boost/foreach.hpp>
+#include <boost/algorithm/string.hpp>
+#include <costmap_2d/footprint.h>
+#include <costmap_2d/array_parser.h>
+#include<geometry_msgs/Point32.h>
+#include <string>
 
 PLUGINLIB_EXPORT_CLASS(polite_inter::PoliteInter, mbf_costmap_core::CostmapInter)
 
@@ -17,19 +26,25 @@ namespace polite_inter
     const uint32_t INTERNAL_ERROR = 1;
     geometry_msgs::PoseStamped temp_goal;
     bool new_goal_set_ = false;
-    geometry_msgs::Twist current_cmd_vel_;
+    double max_vel_x_param_;
+    double changed_max_vel_x_param_;
     
 
     uint32_t PoliteInter::makePlan(const geometry_msgs::PoseStamped &start, const geometry_msgs::PoseStamped &goal,
                                 std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
     {
+        if (!nh_.getParam("/jackal/move_base_flex/TebLocalPlannerROS/max_vel_x", max_vel_x_param_))
+        {
+            ROS_ERROR("Failed to get parameter '/jackal/move_base_flex/TebLocalPlannerROS/max_vel_x'");
+            return 0;
+        }
+        ROS_ERROR("TEST, %f", max_vel_x_param_);
         // Create a request message
         //costmap_2d::GetDump::Request request;
         // No need to set any specific fields in the request for this example
 
         // Create a response message
         //costmap_2d::GetDump::Response response;
-
         costmap_2d::GetDump srv;
         // Lock the mutex for plan_
         boost::unique_lock<boost::mutex> lock(plan_mtx_);
@@ -39,9 +54,6 @@ namespace polite_inter
         double robot_z = start.pose.position.z;
         //ROS_ERROR("Original Goal at the Start: x: %f, y: %f, z: %f, orientation: %f",
         //            goal.pose.position.x, goal.pose.position.y, goal.pose.position.z, tf::getYaw(goal.pose.orientation));
-        double linear_x = current_cmd_vel_.linear.x;
-        double linear_y = current_cmd_vel_.linear.y;
-        double linear_z = current_cmd_vel_.linear.z;
         // Call the GetDump service
         if (get_dump_client_.call(srv))
         {
@@ -59,7 +71,6 @@ namespace polite_inter
                 for (const auto &layer : semantic_layer.layers)
                 {
                     //ROS_ERROR("Layer Name: %s", layer.type.c_str());
-
                     // Iterate through the points in each layer
                     if (layer.type == "pedestrian")
                     {
@@ -68,21 +79,14 @@ namespace polite_inter
                             double distance = std::sqrt(std::pow(point.location.x - robot_x, 2) + std::pow(point.location.y - robot_y, 2))+ std::pow(point.location.z - robot_z, 2);
                             //ROS_ERROR("Location: x: %f, y: %f, z: %f, Distance: %f", point.location.x, point.location.y, point.location.z, distance);
                             //initialize speed to be normal again
-                            geometry_msgs::Twist new_velocity;
-                            new_velocity.linear.x = linear_x;
-                            new_velocity.linear.y = linear_y;
-                            new_velocity.linear.z = linear_z;
                             // Check if the pedestrian is in detection range to slow down
+                            //nh_.setParam("/jackal/move_base_flex/TebLocalPlannerROS/max_vel_x", max_vel_x_param_);
                             if (distance <= caution_detection_range_)
                             {
-                                //apply cautious_speed_ as a multiplier
-                                // Update the linear velocities
-                                new_velocity.linear.x = std::min(linear_x,(cautious_speed_/linear_x));
-                                new_velocity.linear.y = std::min(linear_y,(cautious_speed_/linear_y));
-                                new_velocity.linear.z = std::min(linear_z,(cautious_speed_/linear_z));
+                                nh_.setParam("/jackal/move_base_flex/TebLocalPlannerROS/weight_max_vel_x", changed_max_vel_x_param_);
+                                nh_.setParam("/jackal/move_base_flex/TebLocalPlannerROS/max_vel_x", changed_max_vel_x_param_);
                             }
                             //ROS_ERROR("Current velocity: linear_x = %f, linear_y = %f, linear_z = %f",new_velocity.linear.x, new_velocity.linear.y, new_velocity.linear.z);
-                            vel_pub_.publish(new_velocity);
                             // Check if the pedestrian is in range to set temp goal and move back
                             if ((distance <= ped_minimum_distance_) && !new_goal_set_)
                             {
@@ -138,21 +142,20 @@ namespace polite_inter
     {
         this->name = name;
         std::string node_namespace = ros::this_node::getNamespace();
-        std::string cmd_vel_topic = node_namespace + "/cmd_vel";
 
         nh_ = ros::NodeHandle("~");
 
         // Create a service client for the GetDump service
-        get_dump_client_ = nh_.serviceClient<costmap_2d::GetDump>("global_costmap/get_dump");
-        vel_pub_ = nh_.advertise<geometry_msgs::Twist>(cmd_vel_topic, 1);
-        vel_sub_ = nh_.subscribe(cmd_vel_topic, 1, &PoliteInter::cmdVelCallback, this);
+        if (!nh_.getParam("/jackal/move_base_flex/TebLocalPlannerROS/max_vel_x", max_vel_x_param_))
+        {
+            ROS_ERROR("Failed to get parameter '/jackal/move_base_flex/TebLocalPlannerROS/max_vel_x'");
+            return;
+        }
+        changed_max_vel_x_param_ = (cautious_speed_/max_vel_x_param_);
+        get_dump_client_ = nh_.serviceClient<costmap_2d::GetDump>("global_costmap/get_dump");  
+        vel_pub_ = nh_.advertise<geometry_msgs::Twist>("/jackal/move_base_flex/TebLocalPlannerROS/max_vel_x", 1);
         dynamic_reconfigure::Server<polite_inter::PoliteInterConfig> server;
         server.setCallback(boost::bind(&PoliteInter::reconfigure, this, _1, _2));
-    }
-
-    void PoliteInter::cmdVelCallback(const geometry_msgs::Twist& msg)
-    {
-        current_cmd_vel_ = msg;
     }
 
     void PoliteInter::reconfigure(polite_inter::PoliteInterConfig &config, uint32_t level)
