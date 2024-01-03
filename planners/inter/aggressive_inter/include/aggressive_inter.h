@@ -87,7 +87,7 @@ namespace aggressive_inter
         // default values
         // change in AggressiveInter.cfg to your preference
         double caution_detection_range_ = 10.0;
-        double cautious_speed_ = 0.1;
+        double max_speed_ = 2.0;
         double ped_minimum_distance_ = 2.0;
         double temp_goal_distance_ = 2.0;
         double temp_goal_tolerance_ = 0.2;

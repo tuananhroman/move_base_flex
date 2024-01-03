@@ -20,8 +20,6 @@ namespace aggressive_inter
     geometry_msgs::PoseStamped temp_goal;
     bool new_goal_set_ = false;
     geometry_msgs::Twist current_cmd_vel_;
-    
-
     uint32_t AggressiveInter::makePlan(const geometry_msgs::PoseStamped &start, const geometry_msgs::PoseStamped &goal,
                                 std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
     {
@@ -36,83 +34,42 @@ namespace aggressive_inter
         double linear_x = current_cmd_vel_.linear.x;
         double linear_y = current_cmd_vel_.linear.y;
         //ROS_ERROR("Original Goal at the Start: x: %f, y: %f, z: %f, orientation: %f",
-        //            goal.pose.position.x, goal.pose.position.y, goal.pose.position.z, tf::getYaw(goal.pose.orientation));
+        //goal.pose.position.x, goal.pose.position.y, goal.pose.position.z, tf::getYaw(goal.pose.orientation));
 
-
-        setMaxVelocity(0.5);
-
+        ROS_ERROR("speed: %f", linear_x);
 
         // Call the GetDump service
         if (get_dump_client_.call(srv))
         {
-            //ROS_ERROR("GetDump service call successful");
-
             // Access the semantic layers from the response
             auto semantic_layers = srv.response.semantic_layers;
-            //new_velocity.linear.x = 0.1*linear_x;
-            //new_velocity.linear.y = 0.1*linear_y;
 
-            //vel_pub_.publish(new_velocity);
             // Process the semantic layers
             for (const auto &semantic_layer : semantic_layers)
             {
-                //ROS_ERROR("Semantic Layer Names:");
-
                 // Iterate through the layers
                 for (const auto &layer : semantic_layer.layers)
                 {
-                    //ROS_ERROR("Layer Name: %s", layer.type.c_str());
-
                     // Iterate through the points in each layer
                     if (layer.type == "pedestrian")
                     {
-                        double maxDistance = 999999; //sufficiently high number
+                        double minDistance = 999999; //sufficiently high number
 
                         for (const auto &point : layer.points)
                         {
                             double distance = std::sqrt(std::pow(point.location.x - robot_x, 2) + std::pow(point.location.y - robot_y, 2))+ std::pow(point.location.z - robot_z, 2);
-                            //ROS_ERROR("Location: x: %f, y: %f, z: %f, Distance: %f", point.location.x, point.location.y, point.location.z, distance);
-                            //initialize speed to be normal again
-                            //ROS_ERROR("Pedestrian detected. Distance whatever: %f", distance);
-
-                            //new_velocity.linear.y = 0.5*linear_y; //TODO
 
                             // Check if the pedestrian is in detection range to slow down
                             if (distance <= 5)
                             {
                                 geometry_msgs::Twist new_velocity;
-                                maxDistance = std::min(distance, maxDistance);
-                                double speedFactor = 1 / (1 + std::pow(maxDistance / 5, 2));
-                                ROS_ERROR("Pedestrian detected. Distance < 5: %f", distance);
-                                ROS_ERROR("Pedestrian detected. Distance < 5: %f", distance);
-
-                                new_velocity.linear.x = speedFactor*linear_x;
-                                new_velocity.linear.y = speedFactor*linear_y;
-
-                                //vel_pub_.publish(new_velocity);
-
-                                ROS_ERROR("Pedestrian detected. speed_x: %f", linear_x);
-                                ROS_ERROR("Pedestrian detected. speed_y: %f", linear_y);
-                                //apply cautious_speed_ as a multiplier
-                                // Update the linear velocities
-                                //new_velocity.linear.x = std::min(linear_x,(cautious_speed_/linear_x));
-                                //new_velocity.linear.y = std::min(linear_y,(cautious_speed_/linear_y));
-                                //new_velocity.linear.z = std::min(linear_z,(cautious_speed_/linear_z));
+                                minDistance = std::min(distance, minDistance);
+                                double speed = max_speed_ - (max_speed_ / (1 + std::pow(distance, 2)));
+                                setMaxVelocity(speed);
                             }
-                            //ROS_ERROR("Current velocity: linear_x = %f, linear_y = %f, linear_z = %f",new_speed.linear.x, new_speed.linear.y, new_speed.linear.z);
-                            // Check if the pedestrian is in range to set temp goal and move back
-                            if ((distance <= 2) && !new_goal_set_)
+                            else
                             {
-                                geometry_msgs::Twist new_velocity;
-
-                                ROS_INFO("Pedestrian detected. Distance < 2: %f", distance);
-                                new_velocity.linear.x = 0;
-                                new_velocity.linear.y = 0;
-
-                                //vel_pub_.publish(new_velocity);
-
-                                ROS_INFO("Pedestrian detected. speed_x: %f", linear_x);
-                                ROS_INFO("Pedestrian detected. speed_y: %f", linear_y);
+                                setMaxVelocity(max_speed_);
                             }
                         }
                     }
@@ -160,7 +117,6 @@ namespace aggressive_inter
 
         // Create a service client for the GetDump service
         get_dump_client_ = nh_.serviceClient<costmap_2d::GetDump>("global_costmap/get_dump");
-        vel_pub_ = nh_.advertise<geometry_msgs::Twist>(cmd_vel_topic, 1);
         vel_sub_ = nh_.subscribe(cmd_vel_topic, 1, &AggressiveInter::cmdVelCallback, this);
         dynamic_reconfigure::Server<aggressive_inter::AggressiveInterConfig> server;
         server.setCallback(boost::bind(&AggressiveInter::reconfigure, this, _1, _2));
@@ -184,11 +140,11 @@ namespace aggressive_inter
         // Call the dynamic reconfigure service
         if (client.call(srv))
         {
-            ROS_INFO("Dynamic reconfigure request successful");
+            //ROS_INFO("Dynamic reconfigure request successful");
         }
         else
         {
-            ROS_ERROR("Failed to call dynamic reconfigure service");
+            //ROS_ERROR("Failed to call dynamic reconfigure service");
         }
     }
 
@@ -196,14 +152,13 @@ namespace aggressive_inter
     {
         current_cmd_vel_ = msg;
     }
-
     void AggressiveInter::reconfigure(aggressive_inter::AggressiveInterConfig &config, uint32_t level)
     {
         boost::unique_lock<boost::mutex> lock(vision_cfg_mtx_);
         ped_minimum_distance_ = config.ped_minimum_distance;
         temp_goal_distance_ = config.temp_goal_distance;
         caution_detection_range_ = config.caution_detection_range;
-        cautious_speed_ = config.cautious_speed;
+        max_speed_ = config.max_speed;
         temp_goal_tolerance_ = config.temp_goal_tolerance;
     }
 }
