@@ -69,6 +69,7 @@ namespace aggressive_inter
          * @param geometry_msgs message from cmd_vel
          */
         void cmdVelCallback(const geometry_msgs::Twist& msg);
+        void setMaxVelocity(double new_max_vel_x);
 
 
     private:
@@ -81,7 +82,6 @@ namespace aggressive_inter
 
         // could be used for nh
         std::string name;
-
         ros::NodeHandle nh_;
 
         // default values

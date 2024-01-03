@@ -38,43 +38,9 @@ namespace aggressive_inter
         //ROS_ERROR("Original Goal at the Start: x: %f, y: %f, z: %f, orientation: %f",
         //            goal.pose.position.x, goal.pose.position.y, goal.pose.position.z, tf::getYaw(goal.pose.orientation));
 
-        ros::NodeHandle nh;
 
-        // Set the new max_vel_x value
-        double new_max_vel_x = 0.5;  // Set your desired value here
+        setMaxVelocity(0.5);
 
-        // Create a dynamic reconfigure service client
-        ros::ServiceClient client = nh.serviceClient<dynamic_reconfigure::Reconfigure>("/jackal/move_base_flex/TebLocalPlannerROS/set_parameters");
-
-        // Create a dynamic reconfigure request
-        dynamic_reconfigure::Reconfigure srv2;
-        dynamic_reconfigure::DoubleParameter double_param;
-        dynamic_reconfigure::Config conf;
-
-        double_param.name = "max_vel_x";
-        double_param.value = new_max_vel_x;
-        conf.doubles.push_back(double_param);
-        srv2.request.config = conf;
-
-        // Call the dynamic reconfigure service
-        if (client.call(srv2))
-        {
-            ROS_INFO("Dynamic reconfigure request successful");
-        }
-        else
-        {
-            ROS_ERROR("Failed to call dynamic reconfigure service");
-            return 1;
-        }
-
-
-
-
-
-        //double y_x = linear_y/linear_x;
-        //ROS_INFO("Pedestrian detected. speed_x: %f", linear_x);
-        //ROS_INFO("Pedestrian detected. speed_y: %f", linear_y);
-        //ROS_INFO("Pedestrian detected. speed_z: %f", linear_z);
 
         // Call the GetDump service
         if (get_dump_client_.call(srv))
@@ -198,6 +164,32 @@ namespace aggressive_inter
         vel_sub_ = nh_.subscribe(cmd_vel_topic, 1, &AggressiveInter::cmdVelCallback, this);
         dynamic_reconfigure::Server<aggressive_inter::AggressiveInterConfig> server;
         server.setCallback(boost::bind(&AggressiveInter::reconfigure, this, _1, _2));
+    }
+
+    void AggressiveInter::setMaxVelocity(double new_max_vel_x)
+    {
+        // Create a dynamic reconfigure service client
+        ros::ServiceClient client = nh_.serviceClient<dynamic_reconfigure::Reconfigure>("/jackal/move_base_flex/TebLocalPlannerROS/set_parameters");
+
+        // Create a dynamic reconfigure request
+        dynamic_reconfigure::Reconfigure srv;
+        dynamic_reconfigure::DoubleParameter double_param;
+        dynamic_reconfigure::Config conf;
+
+        double_param.name = "max_vel_x";
+        double_param.value = new_max_vel_x;
+        conf.doubles.push_back(double_param);
+        srv.request.config = conf;
+
+        // Call the dynamic reconfigure service
+        if (client.call(srv))
+        {
+            ROS_INFO("Dynamic reconfigure request successful");
+        }
+        else
+        {
+            ROS_ERROR("Failed to call dynamic reconfigure service");
+        }
     }
 
     void AggressiveInter::cmdVelCallback(const geometry_msgs::Twist& msg)
