@@ -1,10 +1,12 @@
-#ifndef aggressive_inter_H_
-#define aggressive_inter_H_
+#ifndef AGGRESSIVE_INTER_H_
+#define AGGRESSIVE_INTER_H_
 
 #include <ros/ros.h>
 #include <mbf_costmap_core/costmap_inter.h>
 #include <boost/thread/mutex.hpp>
 #include <costmap_2d/GetDump.h>
+#include <dynamic_reconfigure/server.h>
+#include <aggressive_inter/AggressiveInterConfig.h>
 
 namespace aggressive_inter
 {
@@ -62,15 +64,18 @@ namespace aggressive_inter
          * @param costmap_ros A pointer to the ROS wrapper of the costmap to use for planning
          */
         void initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros, costmap_2d::Costmap2DROS *local_costmap_ros);
-
-            /**
-         * @brief Makes the robot move back a specified distance
-         * @param distance the distance in emtres we want the robot to moev back
+        /**
+         * @brief Gets the current velocity for robot
+         * @param geometry_msgs message from cmd_vel
          */
+        void cmdVelCallback(const geometry_msgs::Twist& msg);
+
 
     private:
         // storage for setPlan
         ros::ServiceClient get_dump_client_;
+        ros::Publisher vel_pub_;
+        ros::Subscriber vel_sub_;
         std::vector<geometry_msgs::PoseStamped> plan_;
         boost::mutex plan_mtx_;
 
@@ -79,10 +84,17 @@ namespace aggressive_inter
 
         ros::NodeHandle nh_;
 
-        // min poses in path
-        size_t min_poses_ = 1;
+        // default values
+        // change in AggressiveInter.cfg to your preference
+        double caution_detection_range_ = 10.0;
+        double cautious_speed_ = 0.1;
+        double ped_minimum_distance_ = 2.0;
+        double temp_goal_distance_ = 2.0;
+        double temp_goal_tolerance_ = 0.2;
 
         boost::mutex vision_cfg_mtx_;
+
+        void reconfigure(aggressive_inter::AggressiveInterConfig &config, uint32_t level);
     };
 }
 
