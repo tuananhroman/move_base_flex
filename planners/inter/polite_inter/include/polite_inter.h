@@ -68,7 +68,7 @@ namespace polite_inter
          * @brief Gets the current velocity for robot
          * @param geometry_msgs message from cmd_vel
          */
-        void updateTebParameters(std::string name, double value);
+        void semanticCallback(const pedsim_msgs::SemanticData::ConstPtr& message);
 
 
     private:

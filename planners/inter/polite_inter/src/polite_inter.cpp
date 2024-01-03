@@ -1,4 +1,5 @@
 #include "../include/polite_inter.h"
+#include <std_msgs/Int32.h>
 #include <costmap_2d/semantic_layer.h>
 #include <costmap_2d/GetDump.h>
 #include <costmap_2d/costmap_2d_publisher.h>
@@ -7,13 +8,14 @@
 #include <geometry_msgs/Twist.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <ros/ros.h>
-#include<costmap_2d/costmap_math.h>
+#include <ros/master.h>
+#include <costmap_2d/costmap_math.h>
 #include <boost/tokenizer.hpp>
 #include <boost/foreach.hpp>
 #include <boost/algorithm/string.hpp>
 #include <costmap_2d/footprint.h>
 #include <costmap_2d/array_parser.h>
-#include<geometry_msgs/Point32.h>
+#include <geometry_msgs/Point32.h>
 #include <string>
 #include <dynamic_reconfigure/Reconfigure.h>
 #include <dynamic_reconfigure/Config.h>
@@ -22,8 +24,7 @@ PLUGINLIB_EXPORT_CLASS(polite_inter::PoliteInter, mbf_costmap_core::CostmapInter
 
 namespace polite_inter
 {
-
-    ros::ServiceClient get_dump_client_;
+    ros::Subscriber subscriber_;
     ros::ServiceClient setParametersClient_;
     const uint32_t SUCCESS = 0;
     const uint32_t INTERNAL_ERROR = 1;
@@ -31,111 +32,71 @@ namespace polite_inter
     bool new_goal_set_ = false;
     double max_vel_x_param_;
     double changed_max_vel_x_param_;
-    
+    dynamic_reconfigure::Reconfigure reconfig_;
+    dynamic_reconfigure::DoubleParameter double_param_;
+    dynamic_reconfigure::Config conf_;
+    double final_value;
+    std::vector<geometry_msgs::Point32> semanticPoints;
 
     uint32_t PoliteInter::makePlan(const geometry_msgs::PoseStamped &start, const geometry_msgs::PoseStamped &goal,
-                                std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
+                                   std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
     {
-        // Create a request message
-        //costmap_2d::GetDump::Request request;
-        // No need to set any specific fields in the request for this example
-
-        // Create a response message
-        //costmap_2d::GetDump::Response response;
-        costmap_2d::GetDump srv;
-        // Lock the mutex for plan_
         boost::unique_lock<boost::mutex> lock(plan_mtx_);
-        
+
         double robot_x = start.pose.position.x;
         double robot_y = start.pose.position.y;
         double robot_z = start.pose.position.z;
-        //ROS_ERROR("Original Goal at the Start: x: %f, y: %f, z: %f, orientation: %f",
-        //            goal.pose.position.x, goal.pose.position.y, goal.pose.position.z, tf::getYaw(goal.pose.orientation));
-        // Call the GetDump service
-        if (get_dump_client_.call(srv))
+        for (const auto &point : semanticPoints)
         {
-            //ROS_ERROR("GetDump service call successful");
-
-            // Access the semantic layers from the response
-            auto semantic_layers = srv.response.semantic_layers;
-
-            // Process the semantic layers
-            for (const auto &semantic_layer : semantic_layers)
+            double distance = std::sqrt(std::pow(point.x - robot_x, 2) + std::pow(point.y - robot_y, 2)) + std::pow(point.z - robot_z, 2);
+            // Check if the pedestrian is in range to set temporary goal and move back
+            if ((distance <= ped_minimum_distance_) && !new_goal_set_)
             {
-                //ROS_ERROR("Semantic Layer Names:");
-
-                // Iterate through the layers
-                for (const auto &layer : semantic_layer.layers)
+                ROS_INFO("Pedestrian detected. Distance: %f", distance);
+                if (!new_goal_set_)
                 {
-                    //ROS_ERROR("Layer Name: %s", layer.type.c_str());
-                    // Iterate through the points in each layer
-                    if (layer.type == "pedestrian")
-                    {
-                        for (const auto &point : layer.points)
-                        {
-                            double distance = std::sqrt(std::pow(point.location.x - robot_x, 2) + std::pow(point.location.y - robot_y, 2))+ std::pow(point.location.z - robot_z, 2);
-                            //ROS_ERROR("Location: x: %f, y: %f, z: %f, Distance: %f", point.location.x, point.location.y, point.location.z, distance);
-                            //initialize speed to be normal again
-                            // Check if the pedestrian is in detection range to slow down
-                            //nh_.setParam("/jackal/move_base_flex/TebLocalPlannerROS/max_vel_x", max_vel_x_param_);
-                            if (distance <= caution_detection_range_)
-                            {
-                                dynamic_reconfigure::Reconfigure reconfig;
-                                dynamic_reconfigure::DoubleParameter double_param;
-                                dynamic_reconfigure::Config conf;
-                                double_param.name = "max_vel_x";
-                                double_param.value = changed_max_vel_x_param_;
-                                conf.doubles.push_back(double_param);
-                                reconfig.request.config = conf;
-                                if (setParametersClient_.call(reconfig)) {
-                                    continue;
-                                } else {
-                                    ROS_ERROR("Failed to call set_parameters service");
-                                }
-                            }
-                            //ROS_ERROR("Current velocity: linear_x = %f, linear_y = %f, linear_z = %f",new_velocity.linear.x, new_velocity.linear.y, new_velocity.linear.z);
-                            // Check if the pedestrian is in range to set temp goal and move back
-                            if ((distance <= ped_minimum_distance_) && !new_goal_set_)
-                            {
-                                ROS_INFO("Pedestrian detected. Distance: %f", distance);
-                                if(!new_goal_set_){
-                                    ROS_INFO("Setting new temp_goal");
-                                    temp_goal = start;
-                                    double theta = tf::getYaw(temp_goal.pose.orientation);
-                                    temp_goal.pose.position.x -= temp_goal_distance_ * cos(theta);
-                                    temp_goal.pose.position.y -= temp_goal_distance_ * sin(theta);
-                                    temp_goal.pose.orientation = tf::createQuaternionMsgFromYaw(tf::getYaw(temp_goal.pose.orientation));
-                                    temp_goal.header.frame_id = start.header.frame_id;
-                                    //ROS_ERROR("Position: x = %f, y = %f, z = %f", temp_goal.pose.position.x, temp_goal.pose.position.y, temp_goal.pose.position.z);
-                                    new_goal_set_ = true;
-                                }
-                            }
-                        }
-                    }
+                    ROS_INFO("Setting new temp_goal");
+                    temp_goal = start;
+                    // calculating position for temporary goal
+                    double theta = tf::getYaw(temp_goal.pose.orientation);
+                    temp_goal.pose.position.x -= temp_goal_distance_ * cos(theta);
+                    temp_goal.pose.position.y -= temp_goal_distance_ * sin(theta);
+                    temp_goal.pose.orientation = tf::createQuaternionMsgFromYaw(tf::getYaw(temp_goal.pose.orientation));
+                    temp_goal.header.frame_id = start.header.frame_id;
+                    new_goal_set_ = true;
                 }
             }
-            if (new_goal_set_)
+            // reset max_vel_x to normal value
+            double_param_.name = "max_vel_x";
+            final_value = max_vel_x_param_;
+            if (distance <= caution_detection_range_)
             {
-                double distance_to_temp_goal = std::sqrt(std::pow(temp_goal.pose.position.x - robot_x, 2) + std::pow(temp_goal.pose.position.y - robot_y, 2));
-                
-                if (distance_to_temp_goal <= temp_goal_tolerance_)
-                {
-                    ROS_INFO("Reached temp_goal. Resetting goal.");
-                    new_goal_set_ = false;
-                }
-                // Clear the existing plan and add temp_goal
-                plan.clear();
-                plan.push_back(temp_goal);
-                return 0;
+                // set max_vel_x to reduced value if peds are in range
+                final_value = changed_max_vel_x_param_;
             }
-            plan.insert(plan.end(), plan_.begin(), plan_.end());
+            // set max_vel_x parameter
+            double_param_.value = final_value;
+            conf_.doubles.clear();
+            conf_.doubles.push_back(double_param_);
+            reconfig_.request.config = conf_;
+            setParametersClient_.call(reconfig_);
+        }
+        if (new_goal_set_)
+        {
+            double distance_to_temp_goal = std::sqrt(std::pow(temp_goal.pose.position.x - robot_x, 2) + std::pow(temp_goal.pose.position.y - robot_y, 2));
+
+            if (distance_to_temp_goal <= temp_goal_tolerance_)
+            {
+                ROS_INFO("Reached temp_goal. Resetting goal.");
+                new_goal_set_ = false;
+            }
+            // Clear the existing plan and add temp_goal
+            plan.clear();
+            plan.push_back(temp_goal);
             return 0;
         }
-        else
-        {
-            ROS_ERROR("Failed to call GetDump service");
-            return polite_inter::INTERNAL_ERROR;
-        }
+        plan.insert(plan.end(), plan_.begin(), plan_.end());
+        return 0;
     }
 
     bool PoliteInter::setPlan(const std::vector<geometry_msgs::PoseStamped> &plan)
@@ -145,24 +106,40 @@ namespace polite_inter
         return true;
     }
 
+    void PoliteInter::semanticCallback(const pedsim_msgs::SemanticData::ConstPtr &message)
+    {
+        semanticPoints.clear();
+        for (const auto &point : message->points)
+        {
+            geometry_msgs::Point32 point32;
+            point32.x = point.location.x;
+            point32.y = point.location.y;
+            point32.z = point.location.z;
+
+            semanticPoints.push_back(point32);
+        }
+    }
+
     void PoliteInter::initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros, costmap_2d::Costmap2DROS *local_costmap_ros)
     {
         this->name = name;
         std::string node_namespace = ros::this_node::getNamespace();
-
         nh_ = ros::NodeHandle("~");
-
-        // Create a service client for the GetDump service
+        // get the starting parameter for max_vel_x from our planner
+        std::string subscribedTopic = "/pedsim_agents/semantic/pedestrian";
+        subscriber_ = nh_.subscribe(subscribedTopic, 1, &PoliteInter::semanticCallback, this);
         if (!nh_.getParam("/jackal/move_base_flex/TebLocalPlannerROS/max_vel_x", max_vel_x_param_))
         {
             ROS_ERROR("Failed to get parameter '/jackal/move_base_flex/TebLocalPlannerROS/max_vel_x'");
             return;
         }
-        get_dump_client_ = nh_.serviceClient<costmap_2d::GetDump>("global_costmap/get_dump");  
+        // Create service clients for the GetDump and Reconfigure services
         setParametersClient_ = nh_.serviceClient<dynamic_reconfigure::Reconfigure>("/jackal/move_base_flex/TebLocalPlannerROS/set_parameters");
+
         dynamic_reconfigure::Server<polite_inter::PoliteInterConfig> server;
         server.setCallback(boost::bind(&PoliteInter::reconfigure, this, _1, _2));
-        changed_max_vel_x_param_ = (cautious_speed_/max_vel_x_param_);
+        // needs to be declared here because cautious_speed gets declared with reconfigure
+        changed_max_vel_x_param_ = (cautious_speed_ * max_vel_x_param_);
     }
 
     void PoliteInter::reconfigure(polite_inter::PoliteInterConfig &config, uint32_t level)
