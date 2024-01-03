@@ -83,6 +83,7 @@ namespace polite_inter
         }
         if (new_goal_set_)
         {
+            //calculate distance to temporary goal
             double distance_to_temp_goal = std::sqrt(std::pow(temp_goal.pose.position.x - robot_x, 2) + std::pow(temp_goal.pose.position.y - robot_y, 2));
 
             if (distance_to_temp_goal <= temp_goal_tolerance_)
@@ -111,12 +112,12 @@ namespace polite_inter
         semanticPoints.clear();
         for (const auto &point : message->points)
         {
-            geometry_msgs::Point32 point32;
-            point32.x = point.location.x;
-            point32.y = point.location.y;
-            point32.z = point.location.z;
+            geometry_msgs::Point32 pedestrianPoint;
+            pedestrianPoint.x = point.location.x;
+            pedestrianPoint.y = point.location.y;
+            pedestrianPoint.z = point.location.z;
 
-            semanticPoints.push_back(point32);
+            semanticPoints.push_back(pedestrianPoint);
         }
     }
 
@@ -126,8 +127,8 @@ namespace polite_inter
         std::string node_namespace = ros::this_node::getNamespace();
         nh_ = ros::NodeHandle("~");
         // get the starting parameter for max_vel_x from our planner
-        std::string subscribedTopic = "/pedsim_agents/semantic/pedestrian";
-        subscriber_ = nh_.subscribe(subscribedTopic, 1, &PoliteInter::semanticCallback, this);
+        std::string semanticLayer = "/pedsim_agents/semantic/pedestrian";
+        subscriber_ = nh_.subscribe(semanticLayer, 1, &PoliteInter::semanticCallback, this);
         if (!nh_.getParam("/jackal/move_base_flex/TebLocalPlannerROS/max_vel_x", max_vel_x_param_))
         {
             ROS_ERROR("Failed to get parameter '/jackal/move_base_flex/TebLocalPlannerROS/max_vel_x'");
