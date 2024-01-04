@@ -3,8 +3,6 @@
 
 #include <ros/ros.h>
 #include <mbf_costmap_core/costmap_inter.h>
-#include <boost/thread/mutex.hpp>
-#include <costmap_2d/GetDump.h>
 #include <dynamic_reconfigure/server.h>
 #include <aggressive_inter/AggressiveInterConfig.h>
 
@@ -79,7 +77,7 @@ namespace aggressive_inter
 
         // default values - change in AggressiveInter.cfg to your preference
         double slowdown_distance = 5.0;
-        double max_speed_ = 0.2;
+        double max_speed_ = 2;
         void reconfigure(aggressive_inter::AggressiveInterConfig &config, uint32_t level);
     };
 }
