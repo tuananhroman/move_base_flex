@@ -71,7 +71,6 @@ namespace aggressive_inter
 
     private:
         std::vector<geometry_msgs::PoseStamped> plan_;
-        boost::mutex plan_mtx_;
         std::string name;
         ros::NodeHandle nh_;
 
