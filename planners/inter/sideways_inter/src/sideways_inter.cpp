@@ -96,6 +96,34 @@ namespace sideways_inter
         return true;
     }
 
+
+
+    std::string sidewaysInter::get_local_planner(){
+
+        std::string keyword;
+        std::string local_planner_name;
+
+        if (!nh_.getParam("/jackal/local_planner", keyword))
+        {
+            ROS_ERROR("Failed to get parameter '/jackal/local_planner'");
+      
+        }
+        if(keyword=="teb"){
+            local_planner_name= "TebLocalPlannerROS";
+        }
+        if(keyword=="mpc"){
+            local_planner_name= "MpcLocalPlannerROS";
+        }
+        if(keyword=="dwa"){
+            local_planner_name= "DwaLocalPlannerROS";
+        }
+        if(keyword=="cohan"){
+            local_planner_name= "HAtebLocalPlannerROS";
+        }        
+
+        return local_planner_name;
+    }
+
     void sidewaysInter::semanticCallback(const pedsim_msgs::SemanticData::ConstPtr &message)
     {
         semanticPoints.clear();
@@ -113,37 +141,12 @@ namespace sideways_inter
     void sidewaysInter::initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros, costmap_2d::Costmap2DROS *local_costmap_ros)
     {
 
-        std::string keyword;
-        std::string local_planner_name;
-
-        if (!nh_.getParam("/jackal/local_planner", keyword))
-        {
-            ROS_ERROR("Failed to get parameter '/jackal/local_planner'");
-            return;
-        }
-
-        if(keyword=="teb"){
-            local_planner_name= "TebLocalPlannerROS";
-        }
-
-        if(keyword=="mpc"){
-            local_planner_name= "MpcLocalPlannerROS";
-        }
-
-        if(keyword=="dwa"){
-            local_planner_name= "DwaLocalPlannerROS";
-        }
-
-        if(keyword=="cohan"){
-            local_planner_name= "HAtebLocalPlannerROS";
-        }        
-
+        
+        std::string local_planner_name= get_local_planner();
 
 
 
         // Based on keyword teb,dwa,mpc,hateb set the ,,SetParametersClient"
-
-
         this->name = name;
         std::string node_namespace = ros::this_node::getNamespace();
         nh_ = ros::NodeHandle("~");
@@ -155,6 +158,7 @@ namespace sideways_inter
             ROS_ERROR("Failed to get parameter '/jackal/move_base_flex/LocalPlanner/max_vel_x'");
             return;
         }
+        
         
         // Create service clients for the GetDump and Reconfigure services
         setParametersClient_ = nh_.serviceClient<dynamic_reconfigure::Reconfigure>("/jackal/move_base_flex/" + local_planner_name + "/set_parameters");
@@ -174,5 +178,8 @@ namespace sideways_inter
         cautious_speed_ = config.cautious_speed;
         temp_goal_tolerance_ = config.temp_goal_tolerance;
     }
+
+
+    
 
 }
