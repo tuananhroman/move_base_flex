@@ -96,16 +96,14 @@ namespace sideways_inter
         return true;
     }
 
-
-
     std::string sidewaysInter::get_local_planner(){
 
         std::string keyword;
         std::string local_planner_name;
 
-        if (!nh_.getParam("/jackal/local_planner", keyword))
+        if (!nh_.getParam(node_namespace_+"/local_planner", keyword))
         {
-            ROS_ERROR("Failed to get parameter '/jackal/local_planner'");
+            ROS_ERROR("Failed to get parameter %s/local_planner", node_namespace_.c_str());
       
         }
         if(keyword=="teb"){
@@ -140,28 +138,20 @@ namespace sideways_inter
 
     void sidewaysInter::initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros, costmap_2d::Costmap2DROS *local_costmap_ros)
     {
-
-        
-        std::string local_planner_name= get_local_planner();
-
-
-
-        // Based on keyword teb,dwa,mpc,hateb set the ,,SetParametersClient"
+        std::string local_planner_name = get_local_planner();
         this->name = name;
-        std::string node_namespace = ros::this_node::getNamespace();
+        std::string node_namespace_ = ros::this_node::getNamespace();
         nh_ = ros::NodeHandle("~");
-        // get the starting parameter for max_vel_x from our planner
         std::string semanticLayer = "/pedsim_agents/semantic/pedestrian";
+        // get the starting parameter for max_vel_x from our planner
         subscriber_ = nh_.subscribe(semanticLayer, 1, &sidewaysInter::semanticCallback, this);
-        if (!nh_.getParam("/jackal/move_base_flex/" + local_planner_name + "/max_vel_x", max_vel_x_param_))
+        if (!nh_.getParam(node_namespace_+"/move_base_flex/"+ local_planner_name+"/max_vel_x", max_vel_x_param_))
         {
-            ROS_ERROR("Failed to get parameter '/jackal/move_base_flex/LocalPlanner/max_vel_x'");
+            ROS_ERROR("Failed to get parameter %s/move_base_flex/TebLocalPlannerROS/max_vel_x", node_namespace_.c_str());
             return;
         }
-        
-        
         // Create service clients for the GetDump and Reconfigure services
-        setParametersClient_ = nh_.serviceClient<dynamic_reconfigure::Reconfigure>("/jackal/move_base_flex/" + local_planner_name + "/set_parameters");
+        setParametersClient_ = nh_.serviceClient<dynamic_reconfigure::Reconfigure>(node_namespace_+"/move_base_flex/"+ local_planner_name+"/set_parameters");
 
         dynamic_reconfigure::Server<sideways_inter::sidewaysInterConfig> server;
         server.setCallback(boost::bind(&sidewaysInter::reconfigure, this, _1, _2));
@@ -171,15 +161,11 @@ namespace sideways_inter
 
     void sidewaysInter::reconfigure(sideways_inter::sidewaysInterConfig &config, uint32_t level)
     {
-        boost::unique_lock<boost::mutex> lock(vision_cfg_mtx_);
         ped_minimum_distance_ = config.ped_minimum_distance;
         temp_goal_distance_ = config.temp_goal_distance;
         caution_detection_range_ = config.caution_detection_range;
         cautious_speed_ = config.cautious_speed;
         temp_goal_tolerance_ = config.temp_goal_tolerance;
     }
-
-
-    
 
 }

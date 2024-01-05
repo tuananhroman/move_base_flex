@@ -70,6 +70,8 @@ namespace polite_inter
          */
         void semanticCallback(const pedsim_msgs::SemanticData::ConstPtr& message);
 
+        std::string get_local_planner();
+
 
     private:
         // storage for setPlan
@@ -79,6 +81,7 @@ namespace polite_inter
 
         // could be used for nh
         std::string name;
+        std::string node_namespace_;
 
         ros::NodeHandle nh_;
 

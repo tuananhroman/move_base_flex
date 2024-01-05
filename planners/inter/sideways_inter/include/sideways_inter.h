@@ -81,6 +81,7 @@ namespace sideways_inter
 
         // could be used for nh
         std::string name;
+        std::string node_namespace_;
 
         ros::NodeHandle nh_;
 
