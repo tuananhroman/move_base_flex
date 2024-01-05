@@ -8,6 +8,7 @@
 #include <geometry_msgs/Point32.h>
 #include <dynamic_reconfigure/Reconfigure.h>
 #include <dynamic_reconfigure/Config.h>
+#include <angles/angles.h>
 
 PLUGINLIB_EXPORT_CLASS(polite_inter::PoliteInter, mbf_costmap_core::CostmapInter)
 
@@ -38,16 +39,20 @@ namespace polite_inter
         for (const auto &point : semanticPoints)
         {
             double distance = std::sqrt(std::pow(point.x - robot_x, 2) + std::pow(point.y - robot_y, 2)) + std::pow(point.z - robot_z, 2);
+            //calculates if ped is behind the robot to determine if he can continue to drive or set temp_goal
+            double angle_to_point = atan2(point.x-robot_x, point.y-robot_y);
+            double theta = tf::getYaw(start.pose.orientation);
+            double angle_diff = angles::shortest_angular_distance(theta, angle_to_point);
             // Check if the pedestrian is in range to set temporary goal and move back
-            if ((distance <= ped_minimum_distance_) && !new_goal_set_)
+            if ((distance <= ped_minimum_distance_) && (!new_goal_set_) && std::abs(angle_diff)<= M_PI / 2.0)
             {
                 ROS_INFO("Pedestrian detected. Distance: %f", distance);
+                ROS_ERROR("test %f", std::abs(angle_diff));
                 if (!new_goal_set_)
                 {
                     ROS_INFO("Setting new temp_goal");
                     temp_goal = start;
                     // calculating position for temporary goal
-                    double theta = tf::getYaw(temp_goal.pose.orientation);
                     temp_goal.pose.position.x -= temp_goal_distance_ * cos(theta);
                     temp_goal.pose.position.y -= temp_goal_distance_ * sin(theta);
                     temp_goal.pose.orientation = tf::createQuaternionMsgFromYaw(tf::getYaw(temp_goal.pose.orientation));
@@ -96,15 +101,13 @@ namespace polite_inter
         return true;
     }
 
-    std::string PoliteInter::get_local_planner(){
+    std::string PoliteInter::getLocalPlanner(){
 
         std::string keyword;
         std::string local_planner_name;
 
-        if (!nh_.getParam(node_namespace_+"/local_planner", keyword))
-        {
+        if (!nh_.getParam(node_namespace_+"/local_planner", keyword)){
             ROS_ERROR("Failed to get parameter %s/local_planner", node_namespace_.c_str());
-      
         }
         if(keyword=="teb"){
             local_planner_name= "TebLocalPlannerROS";
@@ -116,13 +119,14 @@ namespace polite_inter
             local_planner_name= "DwaLocalPlannerROS";
         }
         if(keyword=="cohan"){
-            local_planner_name= "HAtebLocalPlannerROS";
+            local_planner_name= "HATebLocalPlannerROS";
         }        
 
         return local_planner_name;
     }
 
     void PoliteInter::semanticCallback(const pedsim_msgs::SemanticData::ConstPtr &message)
+    //turns our semantic layer data into points we can use to calculate distance
     {
         semanticPoints.clear();
         for (const auto &point : message->points)
@@ -138,21 +142,20 @@ namespace polite_inter
 
     void PoliteInter::initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros, costmap_2d::Costmap2DROS *local_costmap_ros)
     {
-        std::string local_planner_name = get_local_planner();
         this->name = name;
+        std::string local_planner_name = getLocalPlanner();
         std::string node_namespace_ = ros::this_node::getNamespace();
+        std::string semantic_layer = "/pedsim_agents/semantic/pedestrian";
         nh_ = ros::NodeHandle("~");
-        std::string semanticLayer = "/pedsim_agents/semantic/pedestrian";
+        subscriber_ = nh_.subscribe(semantic_layer, 1, &PoliteInter::semanticCallback, this);
         // get the starting parameter for max_vel_x from our planner
-        subscriber_ = nh_.subscribe(semanticLayer, 1, &PoliteInter::semanticCallback, this);
-        if (!nh_.getParam(node_namespace_+"/move_base_flex/TebLocalPlannerROS/max_vel_x", max_vel_x_param_))
+        if (!nh_.getParam(node_namespace_+"/move_base_flex/"+ local_planner_name +"/max_vel_x", max_vel_x_param_))
         {
             ROS_ERROR("Failed to get parameter %s/move_base_flex/TebLocalPlannerROS/max_vel_x", node_namespace_.c_str());
             return;
         }
-        // Create service clients for the GetDump and Reconfigure services
+        // Create service client for the Reconfigure service
         setParametersClient_ = nh_.serviceClient<dynamic_reconfigure::Reconfigure>(node_namespace_+"/move_base_flex/"+ local_planner_name+"/set_parameters");
-
         dynamic_reconfigure::Server<polite_inter::PoliteInterConfig> server;
         server.setCallback(boost::bind(&PoliteInter::reconfigure, this, _1, _2));
         // needs to be declared here because cautious_speed gets declared with reconfigure
@@ -161,6 +164,7 @@ namespace polite_inter
 
     void PoliteInter::reconfigure(polite_inter::PoliteInterConfig &config, uint32_t level)
     {
+        //updating values from config
         ped_minimum_distance_ = config.ped_minimum_distance;
         temp_goal_distance_ = config.temp_goal_distance;
         caution_detection_range_ = config.caution_detection_range;

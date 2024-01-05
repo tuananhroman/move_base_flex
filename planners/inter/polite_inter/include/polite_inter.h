@@ -70,7 +70,7 @@ namespace polite_inter
          */
         void semanticCallback(const pedsim_msgs::SemanticData::ConstPtr& message);
 
-        std::string get_local_planner();
+        std::string getLocalPlanner();
 
 
     private:
