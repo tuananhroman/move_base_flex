@@ -67,13 +67,14 @@ namespace aggressive_inter
          * @param new_max_vel_x new max velocityin x direction, has to be greater than penality_epsilon (defined in teb_local_planner_params)
         */
         void setMaxVelocity(double new_max_vel_x);
-
+        std::string get_local_planner();
+        void semanticCallback(const pedsim_msgs::SemanticData::ConstPtr& message);
 
     private:
         std::vector<geometry_msgs::PoseStamped> plan_;
         std::string name;
         ros::NodeHandle nh_;
-
+        std::string node_namespace_;        
         // default values - change in AggressiveInter.cfg to your preference
         double slowdown_distance = 5.0;
         double max_speed_ = 2;

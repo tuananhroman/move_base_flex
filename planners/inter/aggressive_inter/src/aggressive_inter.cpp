@@ -9,7 +9,9 @@ PLUGINLIB_EXPORT_CLASS(aggressive_inter::AggressiveInter, mbf_costmap_core::Cost
 namespace aggressive_inter
 {
     std::vector<geometry_msgs::Point32> semanticPoints;
-
+    ros::Subscriber subscriber_;
+    ros::ServiceClient setParametersClient_;
+    double max_vel_x_param_;
     uint32_t AggressiveInter::makePlan(const geometry_msgs::PoseStamped &start, const geometry_msgs::PoseStamped &goal,
                                        std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
     {
@@ -17,7 +19,7 @@ namespace aggressive_inter
         double robot_y = start.pose.position.y;
         double robot_z = start.pose.position.z;
         double minDistance = 999999; // sufficiently high number
-
+        ros::Subscriber subscriber_;    
         for (const auto &point : semanticPoints)
         {
             double distance = std::sqrt(std::pow(point.x - robot_x, 2) + std::pow(point.y - robot_y, 2)) + std::pow(point.z - robot_z, 2);
@@ -45,10 +47,61 @@ namespace aggressive_inter
         return true;
     }
 
+    void AggressiveInter::semanticCallback(const pedsim_msgs::SemanticData::ConstPtr &message)
+    {
+        semanticPoints.clear();
+        for (const auto &point : message->points)
+        {
+            geometry_msgs::Point32 pedestrianPoint;
+            pedestrianPoint.x = point.location.x;
+            pedestrianPoint.y = point.location.y;
+            pedestrianPoint.z = point.location.z;
+            semanticPoints.push_back(pedestrianPoint);
+        }
+    }
+
+    std::string AggressiveInter::get_local_planner(){
+
+        std::string keyword;
+        std::string local_planner_name;
+
+        if (!nh_.getParam(node_namespace_+"/local_planner", keyword))
+        {
+            ROS_ERROR("Failed to get parameter %s/local_planner", node_namespace_.c_str());
+
+        }
+        if(keyword=="teb"){
+            local_planner_name= "TebLocalPlannerROS";
+        }
+        if(keyword=="mpc"){
+            local_planner_name= "MpcLocalPlannerROS";
+        }
+        if(keyword=="dwa"){
+            local_planner_name= "DwaLocalPlannerROS";
+        }
+        if(keyword=="cohan"){
+            local_planner_name= "HAtebLocalPlannerROS";
+        }        
+
+        return local_planner_name;
+    }
+
     void AggressiveInter::initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros, costmap_2d::Costmap2DROS *local_costmap_ros)
     {
+        std::string local_planner_name = get_local_planner();
         this->name = name;
+        std::string node_namespace_ = ros::this_node::getNamespace();
         nh_ = ros::NodeHandle("~");
+                std::string semanticLayer = "/pedsim_agents/semantic/pedestrian";
+        // get the starting parameter for max_vel_x from our planner
+        subscriber_ = nh_.subscribe(semanticLayer, 1, &AggressiveInter::semanticCallback, this);
+        if (!nh_.getParam(node_namespace_+"/move_base_flex/"+ local_planner_name+"/max_vel_x", max_vel_x_param_))
+        {
+            ROS_ERROR("Failed to get parameter %s/move_base_flex/TebLocalPlannerROS/max_vel_x", node_namespace_.c_str());
+            return;
+        }
+        // Create service clients for the GetDump and Reconfigure services
+        setParametersClient_ = nh_.serviceClient<dynamic_reconfigure::Reconfigure>(node_namespace_+"/move_base_flex/"+ local_planner_name+"/set_parameters");
         dynamic_reconfigure::Server<aggressive_inter::AggressiveInterConfig> server;
         server.setCallback(boost::bind(&AggressiveInter::reconfigure, this, _1, _2));
     }
