@@ -62,15 +62,13 @@ namespace aggressive_inter
          * @param costmap_ros A pointer to the ROS wrapper of the costmap to use for planning
          */
         void initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros, costmap_2d::Costmap2DROS *local_costmap_ros);
-        /**
-         * @brief Sets new maximum velocity in x direction for the robot
-         * @param new_max_vel_x new max velocityin x direction, has to be greater than penality_epsilon (defined in teb_local_planner_params)
-        */
-        void setMaxVelocity(double new_max_vel_x);
-        std::string get_local_planner();
-        void semanticCallback(const pedsim_msgs::SemanticData::ConstPtr& message);
+        
 
     private:
+        // mutexes
+        boost::mutex max_vel_x_mutex_;
+        boost::mutex plan_mtx_;
+
         std::vector<geometry_msgs::PoseStamped> plan_;
         std::string name;
         ros::NodeHandle nh_;
@@ -79,6 +77,19 @@ namespace aggressive_inter
         double slowdown_distance = 5.0;
         double max_speed_ = 2;
         void reconfigure(aggressive_inter::AggressiveInterConfig &config, uint32_t level);
+
+        std::vector<geometry_msgs::Point32> semanticPoints;
+        ros::Subscriber subscriber_;
+        ros::ServiceClient setParametersClient_;
+        double max_vel_x_param_;
+
+        /**
+         * @brief Sets new maximum velocity in x direction for the robot
+         * @param new_max_vel_x new max velocityin x direction, has to be greater than penality_epsilon (defined in teb_local_planner_params)
+        */
+        void setMaxVelocity(double new_max_vel_x);
+        std::string get_local_planner();
+        void semanticCallback(const pedsim_msgs::SemanticData::ConstPtr& message);
     };
 }
 

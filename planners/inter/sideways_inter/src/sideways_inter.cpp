@@ -14,19 +14,6 @@ PLUGINLIB_EXPORT_CLASS(sideways_inter::SidewaysInter, mbf_costmap_core::CostmapI
 
 namespace sideways_inter
 {
-    ros::Subscriber subscriber_;
-    ros::ServiceClient setParametersClient_;
-    const uint32_t SUCCESS = 0;
-    const uint32_t INTERNAL_ERROR = 1;
-    geometry_msgs::PoseStamped temp_goal;
-    bool new_goal_set_ = false;
-    double max_vel_x_param_;
-    double changed_max_vel_x_param_;
-    dynamic_reconfigure::Reconfigure reconfig_;
-    dynamic_reconfigure::DoubleParameter double_param_;
-    dynamic_reconfigure::Config conf_;
-    double final_value;
-    std::vector<geometry_msgs::Point32> semanticPoints;
 
     uint32_t SidewaysInter::makePlan(const geometry_msgs::PoseStamped &start, const geometry_msgs::PoseStamped &goal,
                                    std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
@@ -36,6 +23,9 @@ namespace sideways_inter
         double robot_x = start.pose.position.x;
         double robot_y = start.pose.position.y;
         double robot_z = start.pose.position.z;
+
+        bool caution = false;
+
         for (const auto &point : semanticPoints)
         {
             double distance = std::sqrt(std::pow(point.x - robot_x, 2) + std::pow(point.y - robot_y, 2)) + std::pow(point.z - robot_z, 2);
@@ -43,54 +33,51 @@ namespace sideways_inter
             double angle_to_point = atan2(point.x-robot_x, point.y-robot_y);
             double theta = tf::getYaw(start.pose.orientation);
             double angle_diff = angles::shortest_angular_distance(theta, angle_to_point);
-            // Check if the pedestrian is in range to set temporary goal and move back
-            if ((distance <= ped_minimum_distance_) && (!new_goal_set_) && std::abs(angle_diff)<= M_PI / 2.0)
+
+            // check speed restriction
+            caution |= (distance <= caution_detection_range_);
+
+            // Check if the pedestrian is in range to set temporary goal and move aside
+            if ((!new_goal_set_) && (distance <= ped_minimum_distance_) && (2 * std::abs(angle_diff) <= fov_))
             {
-                ROS_INFO("Pedestrian detected. Distance: %f", distance);
-                ROS_ERROR("test %f", std::abs(angle_diff));
-                if (!new_goal_set_)
-                {
-                    ROS_INFO("Setting new temp_goal");
-                    temp_goal = start;
-                    // calculating position for temporary goal
-                    temp_goal.pose.position.x -= temp_goal_distance_ * cos(theta + M_PI / 4.0);
-                    temp_goal.pose.position.y -= temp_goal_distance_ * sin(theta + M_PI / 4.0);
-                    temp_goal.pose.orientation = tf::createQuaternionMsgFromYaw(tf::getYaw(temp_goal.pose.orientation));
-                    temp_goal.header.frame_id = start.header.frame_id;
-                    new_goal_set_ = true;
-                }
+                ROS_INFO("Pedestrian detected. Distance: %lf", distance);
+                ROS_INFO("Setting new temp_goal");
+                temp_goal_ = start;
+
+                // calculating position for temporary goal
+                temp_goal_.pose.position.x -= temp_goal_distance_ * cos(theta + M_PI / 4.0);
+                temp_goal_.pose.position.y -= temp_goal_distance_ * sin(theta + M_PI / 4.0);
+                temp_goal_.pose.orientation = tf::createQuaternionMsgFromYaw(tf::getYaw(temp_goal_.pose.orientation));
+                temp_goal_.header.frame_id = start.header.frame_id;
+                new_goal_set_ = true;
             }
-            // reset max_vel_x to normal value
-            double_param_.name = "max_vel_x";
-            final_value = max_vel_x_param_;
-            if (distance <= caution_detection_range_)
-            {
-                // set max_vel_x to reduced value if peds are in range
-                final_value = changed_max_vel_x_param_;
-            }
-            // set max_vel_x parameter
-            double_param_.value = final_value;
-            conf_.doubles.clear();
-            conf_.doubles.push_back(double_param_);
-            reconfig_.request.config = conf_;
-            setParametersClient_.call(reconfig_);
+
+            // nothing else to compute
+            if(caution && new_goal_set_)
+                break;
+
         }
+
+        setSpeed(caution ? changed_max_vel_x_param_ : max_vel_x_param_);
+
         if (new_goal_set_)
         {
             //calculate distance to temporary goal
-            double distance_to_temp_goal = std::sqrt(std::pow(temp_goal.pose.position.x - robot_x, 2) + std::pow(temp_goal.pose.position.y - robot_y, 2));
+            double distance_to_temp_goal_ = std::sqrt(std::pow(temp_goal_.pose.position.x - robot_x, 2) + std::pow(temp_goal_.pose.position.y - robot_y, 2));
 
-            if (distance_to_temp_goal <= temp_goal_tolerance_)
+            // Clear the existing plan and add temp_goal
+            plan.clear();
+            plan.push_back(temp_goal_);
+
+            if (distance_to_temp_goal_ <= temp_goal_tolerance_)
             {
                 ROS_INFO("Reached temp_goal. Resetting goal.");
                 new_goal_set_ = false;
             }
-            // Clear the existing plan and add temp_goal
-            plan.clear();
-            plan.push_back(temp_goal);
-            return 0;
         }
-        plan.insert(plan.end(), plan_.begin(), plan_.end());
+        else
+            plan = plan_;
+
         return 0;
     }
 
@@ -101,8 +88,8 @@ namespace sideways_inter
         return true;
     }
 
-    std::string SidewaysInter::getLocalPlanner(){
-
+    std::string SidewaysInter::getLocalPlanner()
+    {
         std::string keyword;
         std::string local_planner_name;
 
@@ -128,6 +115,8 @@ namespace sideways_inter
     void SidewaysInter::semanticCallback(const pedsim_msgs::SemanticData::ConstPtr &message)
     //turns our semantic layer data into points we can use to calculate distance
     {
+        boost::unique_lock<boost::mutex> lock(plan_mtx_);
+        
         semanticPoints.clear();
         for (const auto &point : message->points)
         {
@@ -164,12 +153,37 @@ namespace sideways_inter
 
     void SidewaysInter::reconfigure(sideways_inter::sidewaysInterConfig &config, uint32_t level)
     {
+        boost::unique_lock<boost::mutex> lock(plan_mtx_);
+
         //updating values from config
         ped_minimum_distance_ = config.ped_minimum_distance;
         temp_goal_distance_ = config.temp_goal_distance;
         caution_detection_range_ = config.caution_detection_range;
         cautious_speed_ = config.cautious_speed;
         temp_goal_tolerance_ = config.temp_goal_tolerance;
+
+        fov_ = M_PI; //TODO get from dynamic reconf
+        changed_max_vel_x_param_ = (cautious_speed_ * max_vel_x_param_);
+    }
+
+    void SidewaysInter::setSpeed(double speed)
+    {
+        //TODO make ROS thread safe
+        return;
+        
+        boost::unique_lock<boost::mutex> lock(speed_mtx_);
+
+        if(speed_ != speed){
+            speed_ = speed;
+
+            // set max_vel_x parameter
+            double_param_.name = "max_vel_x";
+            double_param_.value = speed_;
+            conf_.doubles.clear();
+            conf_.doubles.push_back(double_param_);
+            reconfig_.request.config = conf_;
+            setParametersClient_.call(reconfig_);
+        }
     }
 
 }

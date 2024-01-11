@@ -8,6 +8,8 @@
 #include <dynamic_reconfigure/server.h>
 #include <polite_inter/PoliteInterConfig.h>
 
+#include <std_msgs/Float64.h>
+
 namespace polite_inter
 {
 
@@ -64,20 +66,16 @@ namespace polite_inter
          * @param costmap_ros A pointer to the ROS wrapper of the costmap to use for planning
          */
         void initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros, costmap_2d::Costmap2DROS *local_costmap_ros);
-        /**
-         * @brief Gets the current velocity for robot
-         * @param geometry_msgs message from cmd_vel
-         */
-        void semanticCallback(const pedsim_msgs::SemanticData::ConstPtr& message);
-
-        std::string getLocalPlanner();
 
 
     private:
+        //mutexes
+        boost::mutex plan_mtx_;
+        boost::mutex speed_mtx_;
+
         // storage for setPlan
         ros::ServiceClient get_dump_client_;
         std::vector<geometry_msgs::PoseStamped> plan_;
-        boost::mutex plan_mtx_;
 
         // could be used for nh
         std::string name;
@@ -92,11 +90,29 @@ namespace polite_inter
         double ped_minimum_distance_ = 2.0;
         double temp_goal_distance_ = 2.0;
         double temp_goal_tolerance_ = 0.2;
+        double fov_ = M_PI_2;
 
-        boost::mutex vision_cfg_mtx_;
+        double speed_;
+
+        ros::Subscriber subscriber_;
         ros::ServiceClient setParametersClient_;
 
+        geometry_msgs::PoseStamped temp_goal_;
+        bool new_goal_set_ = false;
+        
+        double max_vel_x_param_;
+        double changed_max_vel_x_param_;
+
+        dynamic_reconfigure::Reconfigure reconfig_;
+        dynamic_reconfigure::DoubleParameter double_param_;
+        dynamic_reconfigure::Config conf_;
+        std::vector<geometry_msgs::Point32> semanticPoints;
+
         void reconfigure(polite_inter::PoliteInterConfig &config, uint32_t level);
+        void semanticCallback(const pedsim_msgs::SemanticData::ConstPtr& message);
+        std::string getLocalPlanner();
+
+        void setSpeed(double speed);
     };
 }
 

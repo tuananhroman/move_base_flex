@@ -8,35 +8,32 @@ PLUGINLIB_EXPORT_CLASS(aggressive_inter::AggressiveInter, mbf_costmap_core::Cost
 
 namespace aggressive_inter
 {
-    std::vector<geometry_msgs::Point32> semanticPoints;
-    ros::Subscriber subscriber_;
-    ros::ServiceClient setParametersClient_;
-    double max_vel_x_param_;
     uint32_t AggressiveInter::makePlan(const geometry_msgs::PoseStamped &start, const geometry_msgs::PoseStamped &goal,
                                        std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
     {
         double robot_x = start.pose.position.x;
         double robot_y = start.pose.position.y;
         double robot_z = start.pose.position.z;
-        double minDistance = 999999; // sufficiently high number
-        ros::Subscriber subscriber_;    
+        
+        boost::unique_lock<boost::mutex> lock(plan_mtx_);
+
+        double minDistance = INFINITY;
         for (const auto &point : semanticPoints)
         {
             double distance = std::sqrt(std::pow(point.x - robot_x, 2) + std::pow(point.y - robot_y, 2)) + std::pow(point.z - robot_z, 2);
-            minDistance = std::min(distance, minDistance);
-
-            // Check if the closest pedestrian is in range to slow down
-            if (minDistance <= slowdown_distance)
-            {
-                //speed converges to max_speed_ at around 5 -> adapt function if necessary
-                double speed = max_speed_ - (max_speed_ / (1 + std::pow(distance, 2)));
-                setMaxVelocity(speed);
-            }
-            else
-            {
-                setMaxVelocity(max_speed_);
-            }
+            minDistance = std::min(minDistance, distance);
         }
+
+        double speed = max_speed_;
+        
+        // Check if the closest pedestrian is in range to slow down
+        if (minDistance <= slowdown_distance)
+        {
+            //speed converges to max_speed_ at around 5 -> adapt function if necessary
+            speed = max_speed_ - (max_speed_ / (1 + std::pow(minDistance, 2)));
+        }
+
+        setMaxVelocity(speed);
         plan = plan_;
         return 0;
     }
@@ -49,6 +46,8 @@ namespace aggressive_inter
 
     void AggressiveInter::semanticCallback(const pedsim_msgs::SemanticData::ConstPtr &message)
     {
+        boost::unique_lock<boost::mutex> lock(plan_mtx_);
+        
         semanticPoints.clear();
         for (const auto &point : message->points)
         {
@@ -108,6 +107,11 @@ namespace aggressive_inter
 
     void AggressiveInter::setMaxVelocity(double new_max_vel_x)
     {
+        //TODO make ROS thread safe
+        return;
+        
+        boost::unique_lock<boost::mutex> lock(max_vel_x_mutex_);
+
         ros::ServiceClient client = nh_.serviceClient<dynamic_reconfigure::Reconfigure>("/jackal/move_base_flex/TebLocalPlannerROS/set_parameters");
         dynamic_reconfigure::Reconfigure srv;
         dynamic_reconfigure::DoubleParameter double_param;
@@ -130,6 +134,8 @@ namespace aggressive_inter
 
     void AggressiveInter::reconfigure(aggressive_inter::AggressiveInterConfig &config, uint32_t level)
     {
+        boost::unique_lock<boost::mutex> lock(plan_mtx_);
+
         slowdown_distance = config.slowdown_distance;
         max_speed_ = config.max_speed;
     }
