@@ -1,17 +1,17 @@
-#ifndef SHORTSIGHTED_INTER_H_
-#define SHORTSIGHTED_INTER_H_
+#ifndef SIDEWAYS_INTER_H_
+#define SIDEWAYS_INTER_H_
 
 #include <ros/ros.h>
 #include <mbf_costmap_core/costmap_inter.h>
 #include <boost/thread/mutex.hpp>
-
+#include <costmap_2d/GetDump.h>
 #include <dynamic_reconfigure/server.h>
-#include <shortsighted_inter/ShortsightedInterConfig.h>
+#include <sideways_inter/sidewaysInterConfig.h>
 
-namespace shortsighted_inter
+namespace sideways_inter
 {
 
-    class ShortsightedInter : public mbf_costmap_core::CostmapInter
+    class SidewaysInter : public mbf_costmap_core::CostmapInter
     {
 
         using mbf_costmap_core::CostmapInter::CostmapInter;
@@ -64,25 +64,40 @@ namespace shortsighted_inter
          * @param costmap_ros A pointer to the ROS wrapper of the costmap to use for planning
          */
         void initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros, costmap_2d::Costmap2DROS *local_costmap_ros);
+        /**
+         * @brief Gets the current velocity for robot
+         * @param geometry_msgs message from cmd_vel
+         */
+        void semanticCallback(const pedsim_msgs::SemanticData::ConstPtr& message);
+
+        std::string getLocalPlanner();
+
 
     private:
         // storage for setPlan
+        ros::ServiceClient get_dump_client_;
         std::vector<geometry_msgs::PoseStamped> plan_;
         boost::mutex plan_mtx_;
 
         // could be used for nh
         std::string name;
+        std::string node_namespace_;
 
-        // max vision
-        double vision_limit_ = 0.2;
+        ros::NodeHandle nh_;
 
-        // min poses in path
-        size_t min_poses_ = 1;
+        // default values
+        // change in SidewaysInter.cfg to your preference
+        double caution_detection_range_ = 10.0;
+        double cautious_speed_ = 0.1;
+        double ped_minimum_distance_ = 2.0;
+        double temp_goal_distance_ = 2.0;
+        double temp_goal_tolerance_ = 0.2;
 
         boost::mutex vision_cfg_mtx_;
+        ros::ServiceClient setParametersClient_;
 
-        void reconfigure(shortsighted_inter::ShortsightedInterConfig &config, uint32_t level);
+        void reconfigure(sideways_inter::sidewaysInterConfig &config, uint32_t level);
     };
 }
 
-#endif // SHORTSIGHTED_INTER_H_
+#endif // SIDEWAYS_INTER_H_
