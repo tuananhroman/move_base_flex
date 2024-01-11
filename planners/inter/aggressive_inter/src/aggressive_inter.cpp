@@ -120,11 +120,11 @@ namespace aggressive_inter
 
         if (client.call(srv))
         {
-            ROS_INFO("Dynamic reconfigure request successful");
+            ROS_INFO_ONCE("Dynamic reconfigure request successful");
         }
         else
         {
-            ROS_ERROR("Failed to call dynamic reconfigure service");
+            ROS_ERROR_ONCE("Failed to call dynamic reconfigure service");
         }
     }
 
