@@ -4,7 +4,6 @@
 #include <ros/ros.h>
 #include <mbf_costmap_core/costmap_inter.h>
 #include <boost/thread/mutex.hpp>
-#include <costmap_2d/GetDump.h>
 #include <dynamic_reconfigure/server.h>
 #include <sideways_inter/sidewaysInterConfig.h>
 

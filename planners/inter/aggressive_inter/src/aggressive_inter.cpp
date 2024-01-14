@@ -6,6 +6,7 @@
 #include <pluginlib/class_list_macros.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <ros/ros.h>
+#include <ros/master.h>
 #include <dynamic_reconfigure/Reconfigure.h>
 #include <dynamic_reconfigure/Config.h>
 PLUGINLIB_EXPORT_CLASS(aggressive_inter::AggressiveInter, mbf_costmap_core::CostmapInter)
@@ -29,17 +30,16 @@ namespace aggressive_inter
             minDistance = std::min(minDistance, distance);
         }
 
-        double temp_speed = max_speed_;
+        double temp_speed = max_vel_x_param_;
         
         // Check if the closest pedestrian is in range to slow down
         if (minDistance <= slowdown_distance)
         {
-            //speed converges to max_speed_ at around 5 -> adapt function if necessary
-            temp_speed = max_speed_ - (max_speed_ / (1 + std::pow(minDistance, 2)));
+            //speed converges to max_vel_x_param_ at around 5 -> adapt function if necessary
+            temp_speed = max_vel_x_param_ - (max_vel_x_param_ / (1 + std::pow(minDistance, 2)));
         }
 
         speed_ = temp_speed;
-        ROS_ERROR("TEST TEST TEST %f", speed_);
         plan = plan_;
         return 0;
     }
@@ -69,8 +69,9 @@ namespace aggressive_inter
     {
         this->name = name;
         std::string node_namespace_ = ros::this_node::getNamespace();
+        std::string semantic_layer = "/pedsim_agents/semantic/pedestrian";
         nh_ = ros::NodeHandle("~");
-        std::string semanticLayer = "/pedsim_agents/semantic/pedestrian";
+        subscriber_ = nh_.subscribe(semantic_layer, 1, &AggressiveInter::semanticCallback, this);
         // get our local planner name
         std::string planner_keyword;
         if (!nh_.getParam(node_namespace_+"/local_planner", planner_keyword)){
@@ -135,6 +136,5 @@ namespace aggressive_inter
         boost::unique_lock<boost::mutex> lock(plan_mtx_);
 
         slowdown_distance = config.slowdown_distance;
-        max_speed_ = config.max_speed;
     }
 }

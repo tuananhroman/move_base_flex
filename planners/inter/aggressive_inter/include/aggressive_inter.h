@@ -3,6 +3,7 @@
 
 #include <ros/ros.h>
 #include <mbf_costmap_core/costmap_inter.h>
+#include <boost/thread/mutex.hpp>
 #include <dynamic_reconfigure/server.h>
 #include <aggressive_inter/AggressiveInterConfig.h>
 
@@ -107,7 +108,6 @@ namespace aggressive_inter
         void reconfigure(aggressive_inter::AggressiveInterConfig &config, uint32_t level);
         void semanticCallback(const pedsim_msgs::SemanticData::ConstPtr& message);
         void setMaxVelocityThread();
-        std::string get_local_planner();
     };
 }
 
