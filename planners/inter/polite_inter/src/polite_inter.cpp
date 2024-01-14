@@ -1,7 +1,9 @@
 #include "../include/polite_inter.h"
 #include "../../inter_util/include/inter_util.h"
 
+#include <thread>
 #include <std_msgs/Int32.h>
+
 #include <pluginlib/class_list_macros.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <tf2/LinearMath/Quaternion.h>
@@ -21,7 +23,8 @@ namespace polite_inter
     uint32_t PoliteInter::makePlan(const geometry_msgs::PoseStamped &start, const geometry_msgs::PoseStamped &goal,
                                    std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
     {
-        boost::unique_lock<boost::mutex> lock(plan_mtx_);
+        boost::unique_lock<boost::mutex> plan_lock(plan_mtx_);
+        boost::unique_lock<boost::mutex> speed_lock(speed_mtx_);
 
         double robot_x = start.pose.position.x;
         double robot_y = start.pose.position.y;
@@ -59,8 +62,7 @@ namespace polite_inter
             if(caution && new_goal_set_)
                 break;
         }
-
-        setSpeed(caution ? changed_max_vel_x_param_ : max_vel_x_param_);
+        speed_ = caution ? changed_max_vel_x_param_ : max_vel_x_param_;
 
         if (new_goal_set_)
         {
@@ -120,7 +122,7 @@ namespace polite_inter
         if (!nh_.getParam(node_namespace_+"/local_planner", planner_keyword)){
             ROS_ERROR("Failed to get parameter %s/local_planner", node_namespace_.c_str());
         }
-        std::string local_planner_name = InterUtil::getLocalPlanner(planner_keyword);
+        std::string local_planner_name = inter_util::InterUtil::getLocalPlanner(planner_keyword);
         // get the starting parameter for max_vel_x from our planner
         if (!nh_.getParam(node_namespace_+"/move_base_flex/"+ local_planner_name +"/max_vel_x", max_vel_x_param_))
         {
@@ -131,6 +133,9 @@ namespace polite_inter
         setParametersClient_ = nh_.serviceClient<dynamic_reconfigure::Reconfigure>(node_namespace_+"/move_base_flex/"+ local_planner_name+"/set_parameters");
         dynamic_reconfigure::Server<polite_inter::PoliteInterConfig> server;
         server.setCallback(boost::bind(&PoliteInter::reconfigure, this, _1, _2));
+
+        velocity_thread_ = std::thread(&PoliteInter::setMaxVelocityThread, this);
+
         // needs to be declared here because cautious_speed gets declared with reconfigure
         changed_max_vel_x_param_ = (cautious_speed_ * max_vel_x_param_);
     }
@@ -148,20 +153,41 @@ namespace polite_inter
         changed_max_vel_x_param_ = (cautious_speed_ * max_vel_x_param_);
     }
 
-    void PoliteInter::setSpeed(double speed)
+    void PoliteInter::setMaxVelocityThread()
     {
-        boost::unique_lock<boost::mutex> lock(speed_mtx_);
+        ros::Rate rate(1); // Adjust the rate as needed
+        while (ros::ok())
+        {
+            // Lock to access shared variables
+            boost::unique_lock<boost::mutex> lock(speed_mtx_);
 
-        if(speed_ != speed){
-            speed_ = speed;
+            // Check if the speed has changed
+            if (speed_ != last_speed_)
+            {
+                // set max_vel_x parameter
+                double_param_.name = "max_vel_x";
+                double_param_.value = speed_;
+                conf_.doubles.clear();
+                conf_.doubles.push_back(double_param_);
+                reconfig_.request.config = conf_;
 
-            // set max_vel_x parameter
-            double_param_.name = "max_vel_x";
-            double_param_.value = speed_;
-            conf_.doubles.clear();
-            conf_.doubles.push_back(double_param_);
-            reconfig_.request.config = conf_;
-            setParametersClient_.call(reconfig_);
+                // Call setParametersClient_ to update parameters
+                if (setParametersClient_.call(reconfig_))
+                {
+                    ROS_INFO_ONCE("Dynamic reconfigure request successful");
+                }
+                else
+                {
+                    ROS_ERROR_ONCE("Failed to call dynamic reconfigure service");
+                }
+
+                // Update last_speed_ to avoid unnecessary calls
+                last_speed_ = speed_;
+            }
+
+            // Unlock and sleep
+            lock.unlock();
+            rate.sleep();
         }
     }
 

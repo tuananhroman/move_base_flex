@@ -1,7 +1,7 @@
 // inter_util.cpp
 #include "inter_util.h"
 
-namespace polite_inter
+namespace inter_util
 {
     std::string InterUtil::getLocalPlanner(const std::string &keyword)
     {

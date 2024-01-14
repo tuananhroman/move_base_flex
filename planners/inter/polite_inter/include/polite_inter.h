@@ -9,6 +9,7 @@
 #include <polite_inter/PoliteInterConfig.h>
 
 #include <std_msgs/Float64.h>
+#include <thread>
 
 namespace polite_inter
 {
@@ -93,6 +94,8 @@ namespace polite_inter
         double fov_ = M_PI;
 
         double speed_;
+        double last_speed_;
+        std::thread velocity_thread_;
 
         ros::Subscriber subscriber_;
         ros::ServiceClient setParametersClient_;
@@ -110,8 +113,7 @@ namespace polite_inter
 
         void reconfigure(polite_inter::PoliteInterConfig &config, uint32_t level);
         void semanticCallback(const pedsim_msgs::SemanticData::ConstPtr& message);
-
-        void setSpeed(double speed);
+        void setMaxVelocityThread();
     };
 }
 

@@ -107,22 +107,13 @@ namespace aggressive_inter
 
     void AggressiveInter::setMaxVelocity(double new_max_vel_x)
     {
-        //TODO make ROS thread safe
-        return;
-        
         boost::unique_lock<boost::mutex> lock(max_vel_x_mutex_);
-
-        ros::ServiceClient client = nh_.serviceClient<dynamic_reconfigure::Reconfigure>("/jackal/move_base_flex/TebLocalPlannerROS/set_parameters");
-        dynamic_reconfigure::Reconfigure srv;
-        dynamic_reconfigure::DoubleParameter double_param;
-        dynamic_reconfigure::Config conf;
-
-        double_param.name = "max_vel_x";
-        double_param.value = new_max_vel_x;
-        conf.doubles.push_back(double_param);
-        srv.request.config = conf;
-
-        if (client.call(srv))
+        double_param_.name = "max_vel_x";
+        double_param_.value = new_max_vel_x;
+        conf_.doubles.clear();
+        conf_.doubles.push_back(double_param_);
+        reconfig_.request.config = conf_;
+        if (setParametersClient_.call(reconfig_))
         {
             ROS_INFO_ONCE("Dynamic reconfigure request successful");
         }

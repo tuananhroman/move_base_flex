@@ -78,14 +78,18 @@ namespace aggressive_inter
         double max_speed_ = 2;
         void reconfigure(aggressive_inter::AggressiveInterConfig &config, uint32_t level);
 
+        dynamic_reconfigure::Reconfigure reconfig_;
+        dynamic_reconfigure::DoubleParameter double_param_;
+        dynamic_reconfigure::Config conf_;
         std::vector<geometry_msgs::Point32> semanticPoints;
+        
         ros::Subscriber subscriber_;
         ros::ServiceClient setParametersClient_;
         double max_vel_x_param_;
 
         /**
          * @brief Sets new maximum velocity in x direction for the robot
-         * @param new_max_vel_x new max velocityin x direction, has to be greater than penality_epsilon (defined in teb_local_planner_params)
+         * @param new_max_vel_x new max velocity in x direction, has to be greater than penality_epsilon (defined in teb_local_planner_params)
         */
         void setMaxVelocity(double new_max_vel_x);
         std::string get_local_planner();

@@ -4,7 +4,7 @@
 
 #include <string>
 
-namespace polite_inter
+namespace inter_util
 {
     class InterUtil
     {
