@@ -49,11 +49,12 @@ namespace sideways_inter
                 temp_goal_ = start;
 
                 // calculating position for temporary goal
-                temp_goal_.pose.position.x -= temp_goal_distance_ * cos(theta + M_PI / 4.0);
-                temp_goal_.pose.position.y -= temp_goal_distance_ * sin(theta + M_PI / 4.0);
+                temp_goal_.pose.position.x -= 2*temp_goal_distance_ * cos(theta + M_PI / 2.0);
+                temp_goal_.pose.position.y -= 2*temp_goal_distance_ * sin(theta + M_PI / 2.0);
                 temp_goal_.pose.orientation = tf::createQuaternionMsgFromYaw(tf::getYaw(temp_goal_.pose.orientation));
                 temp_goal_.header.frame_id = start.header.frame_id;
                 new_goal_set_ = true;
+
             }
 
             // nothing else to compute
@@ -75,9 +76,22 @@ namespace sideways_inter
 
             if (distance_to_temp_goal_ <= temp_goal_tolerance_)
             {
-                ROS_INFO("Reached temp_goal. Resetting goal.");
-                new_goal_set_ = false;
+            // Set speed to 0.0 when reaching temp_goal
+            ROS_INFO("Reached temp_goal. Resetting goal and setting speed to 0.0 for 5 seconds.");
+
+            
+            speed_ = 0.0;
+
+            // Wait for 5 seconds
+            std::this_thread::sleep_for(std::chrono::seconds(5));
+
+            // Reset speed to the previous value (last_speed_)
+            speed_ = last_speed_;
+
+            ROS_INFO("Resumed with the previous speed.");
+            new_goal_set_ = false;
             }
+            
         }
         else
             plan = plan_;
@@ -183,6 +197,18 @@ namespace sideways_inter
 
                 // Update last_speed_ to avoid unnecessary calls
                 last_speed_ = speed_;
+            }
+
+            if (speed_ == 0.0)
+            {
+                ROS_INFO("Speed is 0.0. Waiting for 5 seconds...");
+                lock.unlock();
+                std::this_thread::sleep_for(std::chrono::seconds(5));
+                ROS_INFO("Resuming with the previous speed.");
+                lock.lock();
+
+                // After waiting, set speed_ back to the previous value
+                speed_ = last_speed_;
             }
 
             // Unlock and sleep

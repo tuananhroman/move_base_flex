@@ -100,6 +100,8 @@ namespace sideways_inter
 
         ros::ServiceClient setParametersClient_;
 
+        ros::Time start_timer_;
+
         geometry_msgs::PoseStamped temp_goal_;
         bool new_goal_set_ = false;
         
