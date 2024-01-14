@@ -90,7 +90,7 @@ namespace polite_inter
         double ped_minimum_distance_ = 2.0;
         double temp_goal_distance_ = 2.0;
         double temp_goal_tolerance_ = 0.2;
-        double fov_ = M_PI_2;
+        double fov_ = M_PI;
 
         double speed_;
 
@@ -110,7 +110,6 @@ namespace polite_inter
 
         void reconfigure(polite_inter::PoliteInterConfig &config, uint32_t level);
         void semanticCallback(const pedsim_msgs::SemanticData::ConstPtr& message);
-        std::string getLocalPlanner();
 
         void setSpeed(double speed);
     };

@@ -1,4 +1,6 @@
 #include "../include/polite_inter.h"
+#include "../../inter_util/inter_util.h"
+
 #include <std_msgs/Int32.h>
 #include <pluginlib/class_list_macros.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
@@ -9,6 +11,7 @@
 #include <dynamic_reconfigure/Reconfigure.h>
 #include <dynamic_reconfigure/Config.h>
 #include <angles/angles.h>
+
 
 PLUGINLIB_EXPORT_CLASS(polite_inter::PoliteInter, mbf_costmap_core::CostmapInter)
 
@@ -88,30 +91,6 @@ namespace polite_inter
         return true;
     }
 
-    std::string PoliteInter::getLocalPlanner(){
-
-        std::string keyword;
-        std::string local_planner_name;
-
-        if (!nh_.getParam(node_namespace_+"/local_planner", keyword)){
-            ROS_ERROR("Failed to get parameter %s/local_planner", node_namespace_.c_str());
-        }
-        if(keyword=="teb"){
-            local_planner_name= "TebLocalPlannerROS";
-        }
-        if(keyword=="mpc"){
-            local_planner_name= "MpcLocalPlannerROS";
-        }
-        if(keyword=="dwa"){
-            local_planner_name= "DwaLocalPlannerROS";
-        }
-        if(keyword=="cohan"){
-            local_planner_name= "HATebLocalPlannerROS";
-        }        
-
-        return local_planner_name;
-    }
-
     void PoliteInter::semanticCallback(const pedsim_msgs::SemanticData::ConstPtr &message)
     //turns our semantic layer data into points we can use to calculate distance
     {
@@ -132,15 +111,20 @@ namespace polite_inter
     void PoliteInter::initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros, costmap_2d::Costmap2DROS *local_costmap_ros)
     {
         this->name = name;
-        std::string local_planner_name = getLocalPlanner();
         std::string node_namespace_ = ros::this_node::getNamespace();
         std::string semantic_layer = "/pedsim_agents/semantic/pedestrian";
         nh_ = ros::NodeHandle("~");
         subscriber_ = nh_.subscribe(semantic_layer, 1, &PoliteInter::semanticCallback, this);
+        // get our local planner name
+        std::string planner_keyword;
+        if (!nh_.getParam(node_namespace_+"/local_planner", planner_keyword)){
+            ROS_ERROR("Failed to get parameter %s/local_planner", node_namespace_.c_str());
+        }
+        std::string local_planner_name = InterUtil::getLocalPlanner(planner_keyword);
         // get the starting parameter for max_vel_x from our planner
         if (!nh_.getParam(node_namespace_+"/move_base_flex/"+ local_planner_name +"/max_vel_x", max_vel_x_param_))
         {
-            ROS_ERROR("Failed to get parameter %s/move_base_flex/TebLocalPlannerROS/max_vel_x", node_namespace_.c_str());
+            ROS_ERROR("Failed to get parameter %s/move_base_flex/%s/max_vel_x", node_namespace_.c_str(), local_planner_name.c_str());
             return;
         }
         // Create service client for the Reconfigure service
@@ -160,16 +144,12 @@ namespace polite_inter
         caution_detection_range_ = config.caution_detection_range;
         cautious_speed_ = config.cautious_speed;
         temp_goal_tolerance_ = config.temp_goal_tolerance;
-
-        fov_ = M_PI; //TODO get from dynamic reconf
+        fov_ = config.fov;
         changed_max_vel_x_param_ = (cautious_speed_ * max_vel_x_param_);
     }
 
     void PoliteInter::setSpeed(double speed)
     {
-        //TODO make ROS thread safe
-        return;
-        
         boost::unique_lock<boost::mutex> lock(speed_mtx_);
 
         if(speed_ != speed){

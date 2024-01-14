@@ -161,8 +161,7 @@ namespace sideways_inter
         caution_detection_range_ = config.caution_detection_range;
         cautious_speed_ = config.cautious_speed;
         temp_goal_tolerance_ = config.temp_goal_tolerance;
-
-        fov_ = M_PI; //TODO get from dynamic reconf
+        fov_ = config.fov;
         changed_max_vel_x_param_ = (cautious_speed_ * max_vel_x_param_);
     }
 
