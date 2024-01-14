@@ -1,5 +1,5 @@
 #include "../include/polite_inter.h"
-#include "../../inter_util/inter_util.h"
+#include "../../inter_util/include/inter_util.h"
 
 #include <std_msgs/Int32.h>
 #include <pluginlib/class_list_macros.hpp>
