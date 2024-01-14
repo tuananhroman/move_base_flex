@@ -22,7 +22,8 @@ namespace sideways_inter
     uint32_t SidewaysInter::makePlan(const geometry_msgs::PoseStamped &start, const geometry_msgs::PoseStamped &goal,
                                    std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
     {
-        boost::unique_lock<boost::mutex> lock(plan_mtx_);
+        boost::unique_lock<boost::mutex> plan_lock(plan_mtx_);
+        boost::unique_lock<boost::mutex> speed_lock(speed_mtx_);
 
         double robot_x = start.pose.position.x;
         double robot_y = start.pose.position.y;
@@ -133,6 +134,7 @@ namespace sideways_inter
         dynamic_reconfigure::Server<sideways_inter::sidewaysInterConfig> server;
         server.setCallback(boost::bind(&SidewaysInter::reconfigure, this, _1, _2));
 
+        // thread to control the velocity for robot
         velocity_thread_ = std::thread(&SidewaysInter::setMaxVelocityThread, this);
 
         // needs to be declared here because cautious_speed gets declared with reconfigure

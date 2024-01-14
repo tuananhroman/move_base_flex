@@ -1,4 +1,8 @@
 #include "../include/aggressive_inter.h"
+#include "../../inter_util/include/inter_util.h"
+
+#include <thread>
+
 #include <pluginlib/class_list_macros.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <ros/ros.h>
@@ -11,11 +15,12 @@ namespace aggressive_inter
     uint32_t AggressiveInter::makePlan(const geometry_msgs::PoseStamped &start, const geometry_msgs::PoseStamped &goal,
                                        std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
     {
+        boost::unique_lock<boost::mutex> plan_lock(plan_mtx_);
+        boost::unique_lock<boost::mutex> speed_lock(speed_mtx_);
+
         double robot_x = start.pose.position.x;
         double robot_y = start.pose.position.y;
         double robot_z = start.pose.position.z;
-        
-        boost::unique_lock<boost::mutex> lock(plan_mtx_);
 
         double minDistance = INFINITY;
         for (const auto &point : semanticPoints)
@@ -24,16 +29,17 @@ namespace aggressive_inter
             minDistance = std::min(minDistance, distance);
         }
 
-        double speed = max_speed_;
+        double temp_speed = max_speed_;
         
         // Check if the closest pedestrian is in range to slow down
         if (minDistance <= slowdown_distance)
         {
             //speed converges to max_speed_ at around 5 -> adapt function if necessary
-            speed = max_speed_ - (max_speed_ / (1 + std::pow(minDistance, 2)));
+            temp_speed = max_speed_ - (max_speed_ / (1 + std::pow(minDistance, 2)));
         }
 
-        setMaxVelocity(speed);
+        speed_ = temp_speed;
+        ROS_ERROR("TEST TEST TEST %f", speed_);
         plan = plan_;
         return 0;
     }
@@ -59,67 +65,68 @@ namespace aggressive_inter
         }
     }
 
-    std::string AggressiveInter::get_local_planner(){
-
-        std::string keyword;
-        std::string local_planner_name;
-
-        if (!nh_.getParam(node_namespace_+"/local_planner", keyword))
-        {
-            ROS_ERROR("Failed to get parameter %s/local_planner", node_namespace_.c_str());
-
-        }
-        if(keyword=="teb"){
-            local_planner_name= "TebLocalPlannerROS";
-        }
-        if(keyword=="mpc"){
-            local_planner_name= "MpcLocalPlannerROS";
-        }
-        if(keyword=="dwa"){
-            local_planner_name= "DwaLocalPlannerROS";
-        }
-        if(keyword=="cohan"){
-            local_planner_name= "HAtebLocalPlannerROS";
-        }        
-
-        return local_planner_name;
-    }
-
     void AggressiveInter::initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros, costmap_2d::Costmap2DROS *local_costmap_ros)
     {
-        std::string local_planner_name = get_local_planner();
         this->name = name;
         std::string node_namespace_ = ros::this_node::getNamespace();
         nh_ = ros::NodeHandle("~");
-                std::string semanticLayer = "/pedsim_agents/semantic/pedestrian";
+        std::string semanticLayer = "/pedsim_agents/semantic/pedestrian";
+        // get our local planner name
+        std::string planner_keyword;
+        if (!nh_.getParam(node_namespace_+"/local_planner", planner_keyword)){
+            ROS_ERROR("Failed to get parameter %s/local_planner", node_namespace_.c_str());
+        }
+        std::string local_planner_name = inter_util::InterUtil::getLocalPlanner(planner_keyword);
         // get the starting parameter for max_vel_x from our planner
-        subscriber_ = nh_.subscribe(semanticLayer, 1, &AggressiveInter::semanticCallback, this);
-        if (!nh_.getParam(node_namespace_+"/move_base_flex/"+ local_planner_name+"/max_vel_x", max_vel_x_param_))
+        if (!nh_.getParam(node_namespace_+"/move_base_flex/"+ local_planner_name +"/max_vel_x", max_vel_x_param_))
         {
-            ROS_ERROR("Failed to get parameter %s/move_base_flex/TebLocalPlannerROS/max_vel_x", node_namespace_.c_str());
+            ROS_ERROR("Failed to get parameter %s/move_base_flex/%s/max_vel_x", node_namespace_.c_str(), local_planner_name.c_str());
             return;
         }
         // Create service clients for the GetDump and Reconfigure services
         setParametersClient_ = nh_.serviceClient<dynamic_reconfigure::Reconfigure>(node_namespace_+"/move_base_flex/"+ local_planner_name+"/set_parameters");
         dynamic_reconfigure::Server<aggressive_inter::AggressiveInterConfig> server;
         server.setCallback(boost::bind(&AggressiveInter::reconfigure, this, _1, _2));
+
+        // thread to control the velocity for robot
+        velocity_thread_ = std::thread(&AggressiveInter::setMaxVelocityThread, this);
     }
 
-    void AggressiveInter::setMaxVelocity(double new_max_vel_x)
+    void AggressiveInter::setMaxVelocityThread()
     {
-        boost::unique_lock<boost::mutex> lock(max_vel_x_mutex_);
-        double_param_.name = "max_vel_x";
-        double_param_.value = new_max_vel_x;
-        conf_.doubles.clear();
-        conf_.doubles.push_back(double_param_);
-        reconfig_.request.config = conf_;
-        if (setParametersClient_.call(reconfig_))
+        ros::Rate rate(1); // Adjust the rate as needed
+        while (ros::ok())
         {
-            ROS_INFO_ONCE("Dynamic reconfigure request successful");
-        }
-        else
-        {
-            ROS_ERROR_ONCE("Failed to call dynamic reconfigure service");
+            // Lock to access shared variables
+            boost::unique_lock<boost::mutex> lock(speed_mtx_);
+
+            // Check if the speed has changed
+            if (speed_ != last_speed_)
+            {
+                // set max_vel_x parameter
+                double_param_.name = "max_vel_x";
+                double_param_.value = speed_;
+                conf_.doubles.clear();
+                conf_.doubles.push_back(double_param_);
+                reconfig_.request.config = conf_;
+
+                // Call setParametersClient_ to update parameters
+                if (setParametersClient_.call(reconfig_))
+                {
+                    ROS_INFO_ONCE("Dynamic reconfigure request successful");
+                }
+                else
+                {
+                    ROS_ERROR_ONCE("Failed to call dynamic reconfigure service");
+                }
+
+                // Update last_speed_ to avoid unnecessary calls
+                last_speed_ = speed_;
+            }
+
+            // Unlock and sleep
+            lock.unlock();
+            rate.sleep();
         }
     }
 

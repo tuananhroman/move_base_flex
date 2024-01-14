@@ -134,6 +134,7 @@ namespace polite_inter
         dynamic_reconfigure::Server<polite_inter::PoliteInterConfig> server;
         server.setCallback(boost::bind(&PoliteInter::reconfigure, this, _1, _2));
 
+        // thread to control the velocity for robot
         velocity_thread_ = std::thread(&PoliteInter::setMaxVelocityThread, this);
 
         // needs to be declared here because cautious_speed gets declared with reconfigure
