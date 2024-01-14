@@ -75,7 +75,6 @@ namespace polite_inter
         boost::mutex speed_mtx_;
 
         // storage for setPlan
-        ros::ServiceClient get_dump_client_;
         std::vector<geometry_msgs::PoseStamped> plan_;
 
         // could be used for nh
@@ -98,6 +97,7 @@ namespace polite_inter
         std::thread velocity_thread_;
 
         ros::Subscriber subscriber_;
+        
         ros::ServiceClient setParametersClient_;
 
         geometry_msgs::PoseStamped temp_goal_;

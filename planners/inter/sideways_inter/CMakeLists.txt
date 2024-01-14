@@ -3,6 +3,7 @@ project(sideways_inter)
 
 find_package(catkin REQUIRED COMPONENTS
   mbf_costmap_core
+  inter_util
 )
 
 generate_dynamic_reconfigure_options(
@@ -12,7 +13,7 @@ generate_dynamic_reconfigure_options(
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES sideways_inter
-  CATKIN_DEPENDS mbf_costmap_core
+  CATKIN_DEPENDS mbf_costmap_core inter_util
 )
 
 # ##########

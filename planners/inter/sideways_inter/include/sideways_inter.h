@@ -8,6 +8,9 @@
 #include <dynamic_reconfigure/server.h>
 #include <sideways_inter/sidewaysInterConfig.h>
 
+#include <std_msgs/Float64.h>
+#include <thread>
+
 namespace sideways_inter
 {
 
@@ -64,10 +67,6 @@ namespace sideways_inter
          * @param costmap_ros A pointer to the ROS wrapper of the costmap to use for planning
          */
         void initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros, costmap_2d::Costmap2DROS *local_costmap_ros);
-        /**
-         * @brief Gets the current velocity for robot
-         * @param geometry_msgs message from cmd_vel
-         */
 
 
     private:
@@ -76,7 +75,6 @@ namespace sideways_inter
         boost::mutex speed_mtx_;
 
         // storage for setPlan
-        ros::ServiceClient get_dump_client_;
         std::vector<geometry_msgs::PoseStamped> plan_;
 
         // could be used for nh
@@ -92,9 +90,11 @@ namespace sideways_inter
         double ped_minimum_distance_ = 2.0;
         double temp_goal_distance_ = 2.0;
         double temp_goal_tolerance_ = 0.2;
-        double fov_ = M_PI_2;
+        double fov_ = M_PI;
 
         double speed_;
+        double last_speed_;
+        std::thread velocity_thread_;
         
         ros::Subscriber subscriber_;
 
@@ -113,9 +113,7 @@ namespace sideways_inter
 
         void reconfigure(sideways_inter::sidewaysInterConfig &config, uint32_t level);
         void semanticCallback(const pedsim_msgs::SemanticData::ConstPtr& message);
-        std::string getLocalPlanner();
-
-        void setSpeed(double speed);
+        void setMaxVelocityThread();
     };
 }
 
