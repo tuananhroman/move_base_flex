@@ -86,6 +86,7 @@ namespace aggressive_inter
         double slowdown_distance = 5.0;
         double max_speed_ = 2;
 
+        // variables to control the speed
         double speed_;
         double last_speed_;
         std::thread velocity_thread_;

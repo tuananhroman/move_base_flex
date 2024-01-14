@@ -91,6 +91,8 @@ namespace sideways_inter
         double temp_goal_tolerance_ = 0.2;
         double fov_ = M_PI;
 
+
+        // variables to control the speed
         double speed_;
         double last_speed_;
         std::thread velocity_thread_;
