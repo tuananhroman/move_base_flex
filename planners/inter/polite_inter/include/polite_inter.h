@@ -4,11 +4,11 @@
 #include <ros/ros.h>
 #include <mbf_costmap_core/costmap_inter.h>
 #include <boost/thread/mutex.hpp>
-#include <costmap_2d/GetDump.h>
 #include <dynamic_reconfigure/server.h>
 #include <polite_inter/PoliteInterConfig.h>
 
 #include <std_msgs/Float64.h>
+#include <thread>
 
 namespace polite_inter
 {
@@ -74,7 +74,6 @@ namespace polite_inter
         boost::mutex speed_mtx_;
 
         // storage for setPlan
-        ros::ServiceClient get_dump_client_;
         std::vector<geometry_msgs::PoseStamped> plan_;
 
         // could be used for nh
@@ -90,11 +89,15 @@ namespace polite_inter
         double ped_minimum_distance_ = 2.0;
         double temp_goal_distance_ = 2.0;
         double temp_goal_tolerance_ = 0.2;
-        double fov_ = M_PI_2;
+        double fov_ = M_PI;
 
+        // variables to control the speed
         double speed_;
+        double last_speed_;
+        std::thread velocity_thread_;
 
         ros::Subscriber subscriber_;
+        
         ros::ServiceClient setParametersClient_;
 
         geometry_msgs::PoseStamped temp_goal_;
@@ -110,9 +113,7 @@ namespace polite_inter
 
         void reconfigure(polite_inter::PoliteInterConfig &config, uint32_t level);
         void semanticCallback(const pedsim_msgs::SemanticData::ConstPtr& message);
-        std::string getLocalPlanner();
-
-        void setSpeed(double speed);
+        void setMaxVelocityThread();
     };
 }
 

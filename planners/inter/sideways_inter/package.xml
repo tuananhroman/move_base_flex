@@ -51,10 +51,13 @@
   <buildtool_depend>catkin</buildtool_depend>
   <build_depend>mbf_costmap_core</build_depend>
   <build_depend>costmap_2d</build_depend>
+  <build_depend>inter_util</build_depend> 
   <build_export_depend>mbf_costmap_core</build_export_depend>
   <build_export_depend>costmap_2d</build_export_depend>
+  <build_export_depend>inter_util</build_export_depend>
   <exec_depend>costmap_2d</exec_depend>
   <exec_depend>mbf_costmap_core</exec_depend>
+  <exec_depend>inter_util</exec_depend>
 
 
   <!-- The export tag contains other, unspecified, tags -->

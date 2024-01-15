@@ -1,5 +1,9 @@
 #include "../include/sideways_inter.h"
+#include "../../inter_util/include/inter_util.h"
+
+#include <thread>
 #include <std_msgs/Int32.h>
+
 #include <pluginlib/class_list_macros.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <tf2/LinearMath/Quaternion.h>
@@ -18,7 +22,8 @@ namespace sideways_inter
     uint32_t SidewaysInter::makePlan(const geometry_msgs::PoseStamped &start, const geometry_msgs::PoseStamped &goal,
                                    std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
     {
-        boost::unique_lock<boost::mutex> lock(plan_mtx_);
+        boost::unique_lock<boost::mutex> plan_lock(plan_mtx_);
+        boost::unique_lock<boost::mutex> speed_lock(speed_mtx_);
 
         double robot_x = start.pose.position.x;
         double robot_y = start.pose.position.y;
@@ -58,7 +63,7 @@ namespace sideways_inter
 
         }
 
-        setSpeed(caution ? changed_max_vel_x_param_ : max_vel_x_param_);
+        speed_ = caution ? changed_max_vel_x_param_ : max_vel_x_param_;
 
         if (new_goal_set_)
         {
@@ -88,30 +93,6 @@ namespace sideways_inter
         return true;
     }
 
-    std::string SidewaysInter::getLocalPlanner()
-    {
-        std::string keyword;
-        std::string local_planner_name;
-
-        if (!nh_.getParam(node_namespace_+"/local_planner", keyword)){
-            ROS_ERROR("Failed to get parameter %s/local_planner", node_namespace_.c_str());
-        }
-        if(keyword=="teb"){
-            local_planner_name= "TebLocalPlannerROS";
-        }
-        if(keyword=="mpc"){
-            local_planner_name= "MpcLocalPlannerROS";
-        }
-        if(keyword=="dwa"){
-            local_planner_name= "DwaLocalPlannerROS";
-        }
-        if(keyword=="cohan"){
-            local_planner_name= "HATebLocalPlannerROS";
-        }        
-
-        return local_planner_name;
-    }
-
     void SidewaysInter::semanticCallback(const pedsim_msgs::SemanticData::ConstPtr &message)
     //turns our semantic layer data into points we can use to calculate distance
     {
@@ -132,21 +113,30 @@ namespace sideways_inter
     void SidewaysInter::initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros, costmap_2d::Costmap2DROS *local_costmap_ros)
     {
         this->name = name;
-        std::string local_planner_name = getLocalPlanner();
         std::string node_namespace_ = ros::this_node::getNamespace();
         std::string semantic_layer = "/pedsim_agents/semantic/pedestrian";
         nh_ = ros::NodeHandle("~");
         subscriber_ = nh_.subscribe(semantic_layer, 1, &SidewaysInter::semanticCallback, this);
+        // get our local planner name
+        std::string planner_keyword;
+        if (!nh_.getParam(node_namespace_+"/local_planner", planner_keyword)){
+            ROS_ERROR("Failed to get parameter %s/local_planner", node_namespace_.c_str());
+        }
+        std::string local_planner_name = inter_util::InterUtil::getLocalPlanner(planner_keyword);
         // get the starting parameter for max_vel_x from our planner
         if (!nh_.getParam(node_namespace_+"/move_base_flex/"+ local_planner_name +"/max_vel_x", max_vel_x_param_))
         {
-            ROS_ERROR("Failed to get parameter %s/move_base_flex/TebLocalPlannerROS/max_vel_x", node_namespace_.c_str());
+            ROS_ERROR("Failed to get parameter %s/move_base_flex/%s/max_vel_x", node_namespace_.c_str(), local_planner_name.c_str());
             return;
         }
         // Create service client for the Reconfigure service
         setParametersClient_ = nh_.serviceClient<dynamic_reconfigure::Reconfigure>(node_namespace_+"/move_base_flex/"+ local_planner_name+"/set_parameters");
         dynamic_reconfigure::Server<sideways_inter::sidewaysInterConfig> server;
         server.setCallback(boost::bind(&SidewaysInter::reconfigure, this, _1, _2));
+
+        // thread to control the velocity for robot
+        velocity_thread_ = std::thread(&SidewaysInter::setMaxVelocityThread, this);
+
         // needs to be declared here because cautious_speed gets declared with reconfigure
         changed_max_vel_x_param_ = (cautious_speed_ * max_vel_x_param_);
     }
@@ -161,28 +151,45 @@ namespace sideways_inter
         caution_detection_range_ = config.caution_detection_range;
         cautious_speed_ = config.cautious_speed;
         temp_goal_tolerance_ = config.temp_goal_tolerance;
-
-        fov_ = M_PI; //TODO get from dynamic reconf
+        fov_ = config.fov;
         changed_max_vel_x_param_ = (cautious_speed_ * max_vel_x_param_);
     }
 
-    void SidewaysInter::setSpeed(double speed)
+    void SidewaysInter::setMaxVelocityThread()
     {
-        //TODO make ROS thread safe
-        return;
-        
-        boost::unique_lock<boost::mutex> lock(speed_mtx_);
+        ros::Rate rate(1); // Adjust the rate as needed
+        while (ros::ok())
+        {
+            // Lock to access shared variables
+            boost::unique_lock<boost::mutex> lock(speed_mtx_);
 
-        if(speed_ != speed){
-            speed_ = speed;
+            // Check if the speed has changed
+            if (speed_ != last_speed_)
+            {
+                // set max_vel_x parameter
+                double_param_.name = "max_vel_x";
+                double_param_.value = speed_;
+                conf_.doubles.clear();
+                conf_.doubles.push_back(double_param_);
+                reconfig_.request.config = conf_;
 
-            // set max_vel_x parameter
-            double_param_.name = "max_vel_x";
-            double_param_.value = speed_;
-            conf_.doubles.clear();
-            conf_.doubles.push_back(double_param_);
-            reconfig_.request.config = conf_;
-            setParametersClient_.call(reconfig_);
+                // Call setParametersClient_ to update parameters
+                if (setParametersClient_.call(reconfig_))
+                {
+                    ROS_INFO_ONCE("Dynamic reconfigure request successful");
+                }
+                else
+                {
+                    ROS_ERROR_ONCE("Failed to call dynamic reconfigure service");
+                }
+
+                // Update last_speed_ to avoid unnecessary calls
+                last_speed_ = speed_;
+            }
+
+            // Unlock and sleep
+            lock.unlock();
+            rate.sleep();
         }
     }
 

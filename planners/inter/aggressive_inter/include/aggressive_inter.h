@@ -3,8 +3,11 @@
 
 #include <ros/ros.h>
 #include <mbf_costmap_core/costmap_inter.h>
+#include <boost/thread/mutex.hpp>
 #include <dynamic_reconfigure/server.h>
 #include <aggressive_inter/AggressiveInterConfig.h>
+
+#include <thread>
 
 namespace aggressive_inter
 {
@@ -66,30 +69,46 @@ namespace aggressive_inter
 
     private:
         // mutexes
-        boost::mutex max_vel_x_mutex_;
         boost::mutex plan_mtx_;
+        boost::mutex speed_mtx_;
 
+        // storage for setPlan
         std::vector<geometry_msgs::PoseStamped> plan_;
+
+        // could be used for nh
         std::string name;
-        ros::NodeHandle nh_;
-        std::string node_namespace_;        
-        // default values - change in AggressiveInter.cfg to your preference
+        std::string node_namespace_; 
+
+        ros::NodeHandle nh_;  
+
+        // default values 
+        // change in AggressiveInter.cfg to your preference
         double slowdown_distance = 5.0;
         double max_speed_ = 2;
-        void reconfigure(aggressive_inter::AggressiveInterConfig &config, uint32_t level);
 
-        std::vector<geometry_msgs::Point32> semanticPoints;
+        // variables to control the speed
+        double speed_;
+        double last_speed_;
+        std::thread velocity_thread_;
+        
         ros::Subscriber subscriber_;
+
         ros::ServiceClient setParametersClient_;
+
         double max_vel_x_param_;
+
+        dynamic_reconfigure::Reconfigure reconfig_;
+        dynamic_reconfigure::DoubleParameter double_param_;
+        dynamic_reconfigure::Config conf_;
+        std::vector<geometry_msgs::Point32> semanticPoints;
 
         /**
          * @brief Sets new maximum velocity in x direction for the robot
-         * @param new_max_vel_x new max velocityin x direction, has to be greater than penality_epsilon (defined in teb_local_planner_params)
+         * @param new_max_vel_x new max velocity in x direction, has to be greater than penality_epsilon (defined in teb_local_planner_params)
         */
-        void setMaxVelocity(double new_max_vel_x);
-        std::string get_local_planner();
+        void reconfigure(aggressive_inter::AggressiveInterConfig &config, uint32_t level);
         void semanticCallback(const pedsim_msgs::SemanticData::ConstPtr& message);
+        void setMaxVelocityThread();
     };
 }
 
