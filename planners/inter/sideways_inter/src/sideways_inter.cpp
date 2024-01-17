@@ -14,6 +14,7 @@
 #include <dynamic_reconfigure/Config.h>
 #include <angles/angles.h>
 
+
 PLUGINLIB_EXPORT_CLASS(sideways_inter::SidewaysInter, mbf_costmap_core::CostmapInter)
 
 namespace sideways_inter
@@ -22,7 +23,8 @@ namespace sideways_inter
     uint32_t SidewaysInter::makePlan(const geometry_msgs::PoseStamped &start, const geometry_msgs::PoseStamped &goal,
                                    std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
     {
-        boost::unique_lock<boost::mutex> lock(plan_mtx_);
+        boost::unique_lock<boost::mutex> plan_lock(plan_mtx_);
+        boost::unique_lock<boost::mutex> speed_lock(speed_mtx_);
 
         double robot_x = start.pose.position.x;
         double robot_y = start.pose.position.y;
@@ -123,11 +125,59 @@ namespace sideways_inter
         }
     }
 
+
+
+    void SidewaysInter::wallsCallback(const pedsim_msgs::Walls::ConstPtr &message)
+    {
+        boost::unique_lock<boost::mutex> lock(plan_mtx_);
+
+        wallInfos.clear();
+        for (const auto &wall : message->walls)
+        {
+            WallInfo wallInfo;
+            wallInfo.start.x = wall.start.x;
+            wallInfo.start.y = wall.start.y;
+            wallInfo.start.z = wall.start.z;
+
+            wallInfo.end.x = wall.end.x;
+            wallInfo.end.y = wall.end.y;
+            wallInfo.end.z = wall.end.z;
+
+            wallInfo.layer = wall.layer;
+
+            ROS_ERROR("Wall Info: Start(%f, %f, %f), End(%f, %f, %f), Layer(%d)",
+                    wallInfo.start.x, wallInfo.start.y, wallInfo.start.z,
+                    wallInfo.end.x, wallInfo.end.y, wallInfo.end.z,
+                    wallInfo.layer);
+
+            wallInfos.push_back(wallInfo);
+        }
+    }
+
+
+
+
+
+
+
+
+
     void SidewaysInter::initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros, costmap_2d::Costmap2DROS *local_costmap_ros)
     {
         this->name = name;
         std::string node_namespace_ = ros::this_node::getNamespace();
         std::string semantic_layer = "/pedsim_agents/semantic/pedestrian";
+
+
+        ///////////////////////////////////////////////////////////////////////// CODEABSCHNITT FÜR WALLS
+        //Mögliche Topics zum lesen der Walls :/pedsim_simulator/simulated_walls, /pedsim_visualizer/walls, /pedsim_visualizer/walls_array
+
+        std::string walls_data = "/pedsim_visualizer/walls";
+
+ 
+
+
+        //////////////////////////////////////////////////////////////////////////
         nh_ = ros::NodeHandle("~");
         subscriber_ = nh_.subscribe(semantic_layer, 1, &SidewaysInter::semanticCallback, this);
         // get our local planner name
@@ -147,6 +197,7 @@ namespace sideways_inter
         dynamic_reconfigure::Server<sideways_inter::sidewaysInterConfig> server;
         server.setCallback(boost::bind(&SidewaysInter::reconfigure, this, _1, _2));
 
+        // thread to control the velocity for robot
         velocity_thread_ = std::thread(&SidewaysInter::setMaxVelocityThread, this);
 
         // needs to be declared here because cautious_speed gets declared with reconfigure

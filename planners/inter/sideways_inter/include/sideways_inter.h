@@ -4,12 +4,14 @@
 #include <ros/ros.h>
 #include <mbf_costmap_core/costmap_inter.h>
 #include <boost/thread/mutex.hpp>
-#include <costmap_2d/GetDump.h>
 #include <dynamic_reconfigure/server.h>
 #include <sideways_inter/sidewaysInterConfig.h>
 
 #include <std_msgs/Float64.h>
 #include <thread>
+#include <pedsim_msgs/Walls.h>
+
+
 
 namespace sideways_inter
 {
@@ -70,6 +72,16 @@ namespace sideways_inter
 
 
     private:
+
+        //structs
+
+        struct WallInfo
+        {
+            geometry_msgs::Point start;
+            geometry_msgs::Point end;
+            uint8_t layer;
+        };
+        
         // mutexes
         boost::mutex plan_mtx_;
         boost::mutex speed_mtx_;
@@ -92,6 +104,8 @@ namespace sideways_inter
         double temp_goal_tolerance_ = 0.2;
         double fov_ = M_PI;
 
+
+        // variables to control the speed
         double speed_;
         double last_speed_;
         std::thread velocity_thread_;
@@ -112,9 +126,12 @@ namespace sideways_inter
         dynamic_reconfigure::DoubleParameter double_param_;
         dynamic_reconfigure::Config conf_;
         std::vector<geometry_msgs::Point32> semanticPoints;
+        std::vector<WallInfo> wallInfos;
+
 
         void reconfigure(sideways_inter::sidewaysInterConfig &config, uint32_t level);
         void semanticCallback(const pedsim_msgs::SemanticData::ConstPtr& message);
+        void wallsCallback(const pedsim_msgs::Walls::ConstPtr &message);
         void setMaxVelocityThread();
     };
 }
