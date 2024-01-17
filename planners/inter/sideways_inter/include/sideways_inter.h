@@ -10,6 +10,7 @@
 #include <std_msgs/Float64.h>
 #include <thread>
 #include <pedsim_msgs/Walls.h>
+#include <costmap_2d/costmap_2d_publisher.h>
 
 
 
@@ -94,6 +95,7 @@ namespace sideways_inter
         std::string node_namespace_;
 
         ros::NodeHandle nh_;
+        ros::NodeHandle nh_2;
 
         // default values
         // change in SidewaysInter.cfg to your preference
@@ -111,6 +113,7 @@ namespace sideways_inter
         std::thread velocity_thread_;
         
         ros::Subscriber subscriber_;
+        ros::Subscriber subscriber_walls;
 
         ros::ServiceClient setParametersClient_;
 

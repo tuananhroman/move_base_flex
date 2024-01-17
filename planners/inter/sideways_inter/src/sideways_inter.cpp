@@ -120,7 +120,6 @@ namespace sideways_inter
             pedestrianPoint.x = point.location.x;
             pedestrianPoint.y = point.location.y;
             pedestrianPoint.z = point.location.z;
-
             semanticPoints.push_back(pedestrianPoint);
         }
     }
@@ -168,18 +167,21 @@ namespace sideways_inter
         std::string node_namespace_ = ros::this_node::getNamespace();
         std::string semantic_layer = "/pedsim_agents/semantic/pedestrian";
 
+        nh_ = ros::NodeHandle("~");
+        subscriber_ = nh_.subscribe(semantic_layer, 1, &SidewaysInter::semanticCallback, this);
 
-        ///////////////////////////////////////////////////////////////////////// CODEABSCHNITT FÜR WALLS
-        //Mögliche Topics zum lesen der Walls :/pedsim_simulator/simulated_walls, /pedsim_visualizer/walls, /pedsim_visualizer/walls_array
-
-        std::string walls_data = "/pedsim_visualizer/walls";
+        
 
  
+        ///////////////////////////////////////////////////////////////////////// CODEABSCHNITT FÜR WALLS
+        //Mögliche Topics zum lesen der Walls :/pedsim_simulator/simulated_walls, /pedsim_visualizer/walls, /pedsim_visualizer/walls_array
+        nh_2= ros::NodeHandle("~");
+        std::string walls_data = "/pedsim_visualizer/walls";
+        subscriber_walls= nh_2.subscribe(walls_data, 1, &SidewaysInter::wallsCallback, this);
+
 
 
         //////////////////////////////////////////////////////////////////////////
-        nh_ = ros::NodeHandle("~");
-        subscriber_ = nh_.subscribe(semantic_layer, 1, &SidewaysInter::semanticCallback, this);
         // get our local planner name
         std::string planner_keyword;
         if (!nh_.getParam(node_namespace_+"/local_planner", planner_keyword)){
