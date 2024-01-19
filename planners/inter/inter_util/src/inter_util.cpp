@@ -33,11 +33,27 @@ namespace inter_util
         double denominator = 0.0;
 
         for (double term : terms) {
-            denominator += pow((term / 3.0), 2);
+            denominator += 1/pow((term / 3.0), 2);
         }
 
         double exponent = -1.0 / denominator;
 
         return exp(exponent);
         }   
+    
+    void InterUtil::publishSignal(ros::Publisher& publisher)
+    {
+        std_msgs::String msg;
+        msg.data = "SIGNAL";
+        publisher.publish(msg);
+    }
+
+    void InterUtil::checkDanger(ros::Publisher& publisher, const std::vector<double>& terms, double threshold)
+    {
+        double dangerLevel = getDangerLevel(terms);
+
+        if (dangerLevel > threshold) {
+            publishSignal(publisher);
+        }
+    }
 }

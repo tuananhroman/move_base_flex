@@ -24,6 +24,7 @@ namespace aggressive_inter
         double robot_y = start.pose.position.y;
         double robot_z = start.pose.position.z;
         std::vector<double> distances;
+        distances.empty();
         double minDistance = INFINITY;
         for (const auto &point : semanticPoints)
         {
@@ -31,7 +32,13 @@ namespace aggressive_inter
             minDistance = std::min(minDistance, distance);
             distances.push_back(distance);
         }
+        inter_util::InterUtil::checkDanger(dangerPublisher, distances, 0.6);
         ROS_WARN("Danger level: %f", inter_util::InterUtil::getDangerLevel(distances));
+        ROS_WARN("Distances: ");
+        for (const double& distance : distances) {
+            ROS_WARN("%f", distance);
+        }
+
         double temp_speed = max_vel_x_param_;
         
         // Check if the closest pedestrian is in range to slow down
@@ -73,6 +80,7 @@ namespace aggressive_inter
         std::string node_namespace_ = ros::this_node::getNamespace();
         std::string semantic_layer = "/pedsim_agents/semantic/pedestrian";
         nh_ = ros::NodeHandle("~");
+        dangerPublisher = nh_.advertise<std_msgs::String>("Danger", 10);  
         subscriber_ = nh_.subscribe(semantic_layer, 1, &AggressiveInter::semanticCallback, this);
         // get our local planner name
         std::string planner_keyword;

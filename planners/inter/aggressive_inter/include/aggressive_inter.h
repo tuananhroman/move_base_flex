@@ -92,7 +92,7 @@ namespace aggressive_inter
         std::thread velocity_thread_;
         
         ros::Subscriber subscriber_;
-
+        ros::Publisher dangerPublisher;  
         ros::ServiceClient setParametersClient_;
 
         double max_vel_x_param_;
