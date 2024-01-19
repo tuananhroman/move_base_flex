@@ -13,6 +13,7 @@
 #include <dynamic_reconfigure/Reconfigure.h>
 #include <dynamic_reconfigure/Config.h>
 #include <angles/angles.h>
+#include <base_local_planner/point_grid.h>
 
 PLUGINLIB_EXPORT_CLASS(sideways_inter::SidewaysInter, mbf_costmap_core::CostmapInter)
 
@@ -31,14 +32,23 @@ namespace sideways_inter
 
         bool caution = false;
 
+        std::vector<double> distances;
+        distances.empty();
+
         for (const auto &point : semanticPoints)
         {
             double distance = std::sqrt(std::pow(point.x - robot_x, 2) + std::pow(point.y - robot_y, 2)) + std::pow(point.z - robot_z, 2);
+            distances.push_back(distance);
+
             //calculates if ped is behind the robot to determine if he can continue to drive or set temp_goal
             double angle_to_point = atan2(point.x-robot_x, point.y-robot_y);
             double theta = tf::getYaw(start.pose.orientation);
             double angle_diff = angles::shortest_angular_distance(theta, angle_to_point);
-
+            geometry_msgs::Point lower_bound, upper_bound;
+            lower_bound.x = robot_x - temp_goal_distance_;
+            lower_bound.y = robot_y - temp_goal_distance_;
+            upper_bound.x = robot_x + temp_goal_distance_;
+            upper_bound.y = robot_y + temp_goal_distance_;
             // check speed restriction
             caution |= (distance <= caution_detection_range_);
 
@@ -64,6 +74,7 @@ namespace sideways_inter
         }
 
         speed_ = caution ? changed_max_vel_x_param_ : max_vel_x_param_;
+        inter_util::InterUtil::checkDanger(dangerPublisher, distances, 0.6);
 
         if (new_goal_set_)
         {
@@ -114,9 +125,12 @@ namespace sideways_inter
     {
         this->name = name;
         std::string node_namespace_ = ros::this_node::getNamespace();
+
         std::string semantic_layer = "/pedsim_agents/semantic/pedestrian";
         nh_ = ros::NodeHandle("~");
         subscriber_ = nh_.subscribe(semantic_layer, 1, &SidewaysInter::semanticCallback, this);
+        dangerPublisher = nh_.advertise<std_msgs::String>("Danger", 10);  
+
         // get our local planner name
         std::string planner_keyword;
         if (!nh_.getParam(node_namespace_+"/local_planner", planner_keyword)){

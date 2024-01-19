@@ -98,6 +98,7 @@ namespace sideways_inter
         std::thread velocity_thread_;
         
         ros::Subscriber subscriber_;
+        ros::Publisher dangerPublisher;  
 
         ros::ServiceClient setParametersClient_;
 

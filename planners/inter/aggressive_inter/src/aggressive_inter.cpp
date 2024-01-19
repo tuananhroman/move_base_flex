@@ -23,9 +23,10 @@ namespace aggressive_inter
         double robot_x = start.pose.position.x;
         double robot_y = start.pose.position.y;
         double robot_z = start.pose.position.z;
+        double minDistance = INFINITY;
+
         std::vector<double> distances;
         distances.empty();
-        double minDistance = INFINITY;
         for (const auto &point : semanticPoints)
         {
             double distance = std::sqrt(std::pow(point.x - robot_x, 2) + std::pow(point.y - robot_y, 2)) + std::pow(point.z - robot_z, 2);

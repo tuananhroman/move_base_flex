@@ -81,6 +81,7 @@ namespace polite_inter
         std::string node_namespace_;
 
         ros::NodeHandle nh_;
+        ros::Publisher dangerPublisher;  
 
         // default values
         // change in PoliteInter.cfg to your preference

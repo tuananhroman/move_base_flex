@@ -13,7 +13,7 @@
 #include <dynamic_reconfigure/Reconfigure.h>
 #include <dynamic_reconfigure/Config.h>
 #include <angles/angles.h>
-
+#include <vector>
 
 PLUGINLIB_EXPORT_CLASS(polite_inter::PoliteInter, mbf_costmap_core::CostmapInter)
 
@@ -29,8 +29,10 @@ namespace polite_inter
         double robot_x = start.pose.position.x;
         double robot_y = start.pose.position.y;
         double robot_z = start.pose.position.z;
-
         bool caution = false;
+            
+        std::vector<double> distances;
+        distances.empty();
 
         for (const auto &point : semanticPoints)
         {
@@ -39,10 +41,12 @@ namespace polite_inter
             double angle_to_point = atan2(point.x-robot_x, point.y-robot_y);
             double theta = tf::getYaw(start.pose.orientation);
             double angle_diff = angles::shortest_angular_distance(theta, angle_to_point);
-            
+
+            distances.push_back(distance);
+
             // check speed restriction
             caution |= (distance <= caution_detection_range_);
-            
+
             // Check if the pedestrian is in range to set temporary goal and move back
             if ((!new_goal_set_) && (distance <= ped_minimum_distance_) && (2 * std::abs(angle_diff) <= fov_))
             {
@@ -63,6 +67,7 @@ namespace polite_inter
                 break;
         }
         speed_ = caution ? changed_max_vel_x_param_ : max_vel_x_param_;
+        inter_util::InterUtil::checkDanger(dangerPublisher, distances, 0.6);
 
         if (new_goal_set_)
         {
@@ -117,6 +122,8 @@ namespace polite_inter
         std::string semantic_layer = "/pedsim_agents/semantic/pedestrian";
         nh_ = ros::NodeHandle("~");
         subscriber_ = nh_.subscribe(semantic_layer, 1, &PoliteInter::semanticCallback, this);
+        dangerPublisher = nh_.advertise<std_msgs::String>("Danger", 10);  
+
         // get our local planner name
         std::string planner_keyword;
         if (!nh_.getParam(node_namespace_+"/local_planner", planner_keyword)){
