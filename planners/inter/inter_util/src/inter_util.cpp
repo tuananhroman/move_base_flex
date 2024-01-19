@@ -1,5 +1,7 @@
 // inter_util.cpp
 #include "inter_util.h"
+#include <vector>
+#include <cmath>
 
 namespace inter_util
 {
@@ -26,4 +28,16 @@ namespace inter_util
 
         return local_planner_name;
     }
+
+    double InterUtil::getDangerLevel(const std::vector<double>& terms) {
+        double denominator = 0.0;
+
+        for (double term : terms) {
+            denominator += pow((term / 3.0), 2);
+        }
+
+        double exponent = -1.0 / denominator;
+
+        return exp(exponent);
+        }   
 }
