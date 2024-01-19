@@ -11,7 +11,7 @@ namespace inter_util
     {
     public:
         static std::string getLocalPlanner(const std::string &keyword);
-        double getDangerLevel(const std::vector<double>& terms);
+        static double getDangerLevel(const std::vector<double>& terms);
     };
 }
 

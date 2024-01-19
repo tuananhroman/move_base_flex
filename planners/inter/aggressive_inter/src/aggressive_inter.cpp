@@ -2,6 +2,7 @@
 #include "../../inter_util/include/inter_util.h"
 
 #include <thread>
+#include <vector>
 
 #include <pluginlib/class_list_macros.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
@@ -30,7 +31,7 @@ namespace aggressive_inter
             minDistance = std::min(minDistance, distance);
             distances.push_back(distance);
         }
-
+        ROS_WARN("Danger level: %f", inter_util::InterUtil::getDangerLevel(distances));
         double temp_speed = max_vel_x_param_;
         
         // Check if the closest pedestrian is in range to slow down
