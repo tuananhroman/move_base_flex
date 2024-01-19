@@ -85,6 +85,7 @@ namespace aggressive_inter
         // change in AggressiveInter.cfg to your preference
         double slowdown_distance = 5.0;
         double max_speed_ = 2;
+        double danger_threshold = 0.6;
 
         // variables to control the speed
         double speed_;

@@ -33,7 +33,7 @@ namespace aggressive_inter
             minDistance = std::min(minDistance, distance);
             distances.push_back(distance);
         }
-        inter_util::InterUtil::checkDanger(dangerPublisher, distances, 0.6);
+        inter_util::InterUtil::checkDanger(dangerPublisher, distances, danger_threshold);
         ROS_WARN("Danger level: %f", inter_util::InterUtil::getDangerLevel(distances));
         ROS_WARN("Distances: ");
         for (const double& distance : distances) {
@@ -147,5 +147,6 @@ namespace aggressive_inter
         boost::unique_lock<boost::mutex> lock(plan_mtx_);
 
         slowdown_distance = config.slowdown_distance;
+        danger_threshold = config.danger_threshold;
     }
 }

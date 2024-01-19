@@ -90,6 +90,7 @@ namespace polite_inter
         double ped_minimum_distance_ = 2.0;
         double temp_goal_distance_ = 2.0;
         double temp_goal_tolerance_ = 0.2;
+        double danger_threshold = 0.6;
         double fov_ = M_PI;
 
         // variables to control the speed

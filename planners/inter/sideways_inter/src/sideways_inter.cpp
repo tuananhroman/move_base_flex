@@ -166,6 +166,7 @@ namespace sideways_inter
         cautious_speed_ = config.cautious_speed;
         temp_goal_tolerance_ = config.temp_goal_tolerance;
         fov_ = config.fov;
+        danger_threshold = config.danger_threshold;
         changed_max_vel_x_param_ = (cautious_speed_ * max_vel_x_param_);
     }
 

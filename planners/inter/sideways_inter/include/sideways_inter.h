@@ -90,6 +90,7 @@ namespace sideways_inter
         double temp_goal_distance_ = 2.0;
         double temp_goal_tolerance_ = 0.2;
         double fov_ = M_PI;
+        double danger_threshold = 0.6;
 
 
         // variables to control the speed
