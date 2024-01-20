@@ -39,6 +39,8 @@ namespace polite_inter
         for (const auto &point : semanticPoints)
         {
             double distance = std::sqrt(std::pow(point.x - robot_x, 2) + std::pow(point.y - robot_y, 2)) + std::pow(point.z - robot_z, 2);
+            distances.push_back(distance);
+
             //calculates if ped is behind the robot to determine if he can continue to drive or set temp_goal
             double angle_to_point = atan2(point.x-robot_x, point.y-robot_y);
             double theta = tf::getYaw(start.pose.orientation);
@@ -60,8 +62,6 @@ namespace polite_inter
                     }
                 }
             }
-
-            distances.push_back(distance);
 
             // check speed restriction
             caution |= (distance <= caution_detection_range_);
@@ -167,7 +167,6 @@ namespace polite_inter
         std::string semantic_layer = "/pedsim_agents/semantic/pedestrian";
         nh_ = ros::NodeHandle("~");
         subscriber_ = nh_.subscribe(semantic_layer, 1, &PoliteInter::semanticCallback, this);
-
         dangerPublisher = nh_.advertise<std_msgs::String>("Danger", 10);  
 
         //get topic for our scan
@@ -220,7 +219,6 @@ namespace polite_inter
         cautious_speed_ = config.cautious_speed;
         temp_goal_tolerance_ = config.temp_goal_tolerance;
         fov_ = config.fov;
-        wall_detect_fov_ = config.wall_detect_fov;
         danger_threshold = config.danger_threshold;
         changed_max_vel_x_param_ = (cautious_speed_ * max_vel_x_param_);
     }

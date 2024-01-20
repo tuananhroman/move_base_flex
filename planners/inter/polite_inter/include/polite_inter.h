@@ -86,7 +86,6 @@ namespace polite_inter
         std::string node_namespace_;
 
         ros::NodeHandle nh_;
-        ros::Publisher dangerPublisher;  
 
         // default values
         // change in PoliteInter.cfg to your preference
@@ -97,23 +96,17 @@ namespace polite_inter
         double temp_goal_tolerance_ = 0.2;
         double danger_threshold = 0.6;
         double fov_ = M_PI;
-        // the default fov value translates to 135 degrees
-        // PI would be 180 degrees
-        // we use it to detect if a scan is in the intervall of
-        // [M_PI-wall_detect_fov_,wall_detect_fov_]
-        // which is why it needs to be <= M_PI
-        double wall_detect_fov_ = (3*M_PI)/4;
 
         // variables to control the speed
         double speed_;
         double last_speed_;
         std::thread velocity_thread_;
 
-        laser_geometry::LaserProjection projector_;  ///< @brief Used to project laser scans into point clouds
-
         ros::Subscriber subscriber_;
         ros::Subscriber laser_scan_subscriber_;
         ros::Subscriber helios_points_subscriber_;
+
+        ros::Publisher dangerPublisher;  
         
         ros::ServiceClient setParametersClient_;
 

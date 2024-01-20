@@ -5,12 +5,15 @@
 #include <mbf_costmap_core/costmap_inter.h>
 #include <boost/thread/mutex.hpp>
 #include <dynamic_reconfigure/server.h>
+#include <laser_geometry/laser_geometry.h>
+#include <sensor_msgs/PointCloud2.h>
+#include <sensor_msgs/PointCloud.h>
+#include <sensor_msgs/LaserScan.h>
+#include <sensor_msgs/point_cloud_conversion.h>
 #include <sideways_inter/sidewaysInterConfig.h>
 
 #include <std_msgs/Float64.h>
 #include <thread>
-#include <pedsim_msgs/Walls.h>
-#include <costmap_2d/costmap_2d_publisher.h>
 
 
 
@@ -73,16 +76,6 @@ namespace sideways_inter
 
 
     private:
-
-        //structs
-
-        struct WallInfo
-        {
-            geometry_msgs::Point start;
-            geometry_msgs::Point end;
-            uint8_t layer;
-        };
-        
         // mutexes
         boost::mutex plan_mtx_;
         boost::mutex speed_mtx_;
@@ -94,8 +87,8 @@ namespace sideways_inter
         std::string name;
         std::string node_namespace_;
 
+        ros::Time start_timer_;
         ros::NodeHandle nh_;
-        ros::NodeHandle nh_2;
 
         // default values
         // change in SidewaysInter.cfg to your preference
@@ -112,13 +105,14 @@ namespace sideways_inter
         double speed_;
         double last_speed_;
         std::thread velocity_thread_;
-        
+
         ros::Subscriber subscriber_;
-        ros::Publisher dangerPublisher;  
+        ros::Subscriber laser_scan_subscriber_;
+        ros::Subscriber helios_points_subscriber_;
+
+        ros::Publisher dangerPublisher; 
 
         ros::ServiceClient setParametersClient_;
-
-        ros::Time start_timer_;
 
         geometry_msgs::PoseStamped temp_goal_;
         bool new_goal_set_ = false;
@@ -130,12 +124,13 @@ namespace sideways_inter
         dynamic_reconfigure::DoubleParameter double_param_;
         dynamic_reconfigure::Config conf_;
         std::vector<geometry_msgs::Point32> semanticPoints;
-        std::vector<WallInfo> wallInfos;
-
+        std::vector<double> detectedRanges;
+        std::vector<double> detectedAngles;
 
         void reconfigure(sideways_inter::sidewaysInterConfig &config, uint32_t level);
         void semanticCallback(const pedsim_msgs::SemanticData::ConstPtr& message);
-        void wallsCallback(const pedsim_msgs::Walls::ConstPtr &message);
+        void laserScanCallback(const sensor_msgs::LaserScan::ConstPtr& msg);
+        //void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& msg);
         void setMaxVelocityThread();
     };
 }
