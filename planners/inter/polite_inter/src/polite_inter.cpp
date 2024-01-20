@@ -31,6 +31,7 @@ namespace polite_inter
         double robot_y = start.pose.position.y;
         double robot_z = start.pose.position.z;
         bool caution = false;
+        bool wall_near = false;
             
         std::vector<double> distances;
         distances.empty();
@@ -49,10 +50,14 @@ namespace polite_inter
                 bool isPed = (detectedRanges[i] - 0.2 <= distance) && (distance <= detectedRanges[i] + 0.2);
                 double relative_angle = angles::shortest_angular_distance(theta, detectedAngles[i]);
                 // here we check if the scan is:
-                // behind the robot, not a pedestrian and the temp goal woul be in or behind the scanned object
+                // behind the robot, not a pedestrian and the temp goal would be in or behind the scanned object
                 // to determine if the scan is a static obstacle
-                if ((M_PI - wall_detect_fov_ <= (2*std::abs(relative_angle)) <= wall_detect_fov_) && (detectedRanges[i] <= temp_goal_distance_) && !isPed){
-                    ROS_ERROR("Detected Range[%zu] that should be static obstacle for Scan Point: %f and here the Angle %f", i, detectedRanges[i], 2 * std::abs(relative_angle));
+                if ((2*std::abs(relative_angle) <= M_PI) && (detectedRanges[i] <= temp_goal_distance_) && !isPed){
+                    if(detectedRanges[i] <= 0.6){
+                        //TODO: Get robot size to determine appropiate value (currently hardcoded 0.6 for jackal)
+                        ROS_INFO("Detected Range[%zu] that should be a static obstacle for Scan Point: %f and here the Angle %f", i, detectedRanges[i], 2 * std::abs(relative_angle));
+                        wall_near = true;
+                    }
                 }
             }
 
@@ -81,17 +86,21 @@ namespace polite_inter
                 break;
         }
         speed_ = caution ? changed_max_vel_x_param_ : max_vel_x_param_;
-        inter_util::InterUtil::checkDanger(dangerPublisher, distances, 0.6);
-
+        inter_util::InterUtil::checkDanger(dangerPublisher, distances, 0.6);     
         if (new_goal_set_)
         {
+            if(wall_near) {
+                ROS_ERROR("AVOIDED COLLISION WITH OBSTACLE. CONTINUE NORMAL PLANNING");
+                new_goal_set_ = false;
+                plan = plan_;
+                return 0;
+            }   
             //calculate distance to temporary goal
             double distance_to_temp_goal = std::sqrt(std::pow(temp_goal_.pose.position.x - robot_x, 2) + std::pow(temp_goal_.pose.position.y - robot_y, 2));
 
             // Clear the existing plan and add temp_goal
             plan.clear();
             plan.push_back(temp_goal_);
-
             if (distance_to_temp_goal <= temp_goal_tolerance_)
             {
                 ROS_INFO("Reached temp_goal. Resetting goal.");

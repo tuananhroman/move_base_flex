@@ -99,6 +99,9 @@ namespace polite_inter
         double fov_ = M_PI;
         // the default fov value translates to 135 degrees
         // PI would be 180 degrees
+        // we use it to detect if a scan is in the intervall of
+        // [M_PI-wall_detect_fov_,wall_detect_fov_]
+        // which is why it needs to be <= M_PI
         double wall_detect_fov_ = (3*M_PI)/4;
 
         // variables to control the speed
