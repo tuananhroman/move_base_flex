@@ -16,14 +16,13 @@
 #include <base_local_planner/point_grid.h>
 #include <vector>
 
-
 PLUGINLIB_EXPORT_CLASS(sideways_inter::SidewaysInter, mbf_costmap_core::CostmapInter)
 
 namespace sideways_inter
 {
 
     uint32_t SidewaysInter::makePlan(const geometry_msgs::PoseStamped &start, const geometry_msgs::PoseStamped &goal,
-                                   std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
+                                     std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
     {
         boost::unique_lock<boost::mutex> plan_lock(plan_mtx_);
         boost::unique_lock<boost::mutex> speed_lock(speed_mtx_);
@@ -43,8 +42,8 @@ namespace sideways_inter
             double distance = std::sqrt(std::pow(point.x - robot_x, 2) + std::pow(point.y - robot_y, 2)) + std::pow(point.z - robot_z, 2);
             distances.push_back(distance);
 
-            //calculates if ped is behind the robot to determine if he can continue to drive or set temp_goal
-            double angle_to_point = atan2(point.x-robot_x, point.y-robot_y);
+            // calculates if ped is behind the robot to determine if he can continue to drive or set temp_goal
+            double angle_to_point = atan2(point.x - robot_x, point.y - robot_y);
             double theta = tf::getYaw(start.pose.orientation);
             double angle_diff = angles::shortest_angular_distance(theta, angle_to_point);
 
@@ -56,9 +55,13 @@ namespace sideways_inter
                 // here we check if the scan is:
                 // behind the robot, not a pedestrian and the temp goal would be in or behind the scanned object
                 // to determine if the scan is a static obstacle
-                if ((2*std::abs(relative_angle) <= M_PI) && (detectedRanges[i] <= temp_goal_distance_) && !isPed){
-                    if(detectedRanges[i] <= 0.6){
-                        //TODO: Get robot size to determine appropiate value (currently hardcoded 0.6 for jackal)
+                if ((2 * std::abs(relative_angle) <= M_PI) && (detectedRanges[i] <= temp_goal_distance_) && !isPed)
+                {
+                    // due to weird positiong with sideways behaviour the distance
+                    // to detect walls is increased
+                    if (detectedRanges[i] <= 0.65)
+                    {
+                        // TODO: Get robot size to determine appropiate value (currently hardcoded 0.6 for jackal)
                         ROS_INFO("Detected Range[%zu] that should be a static obstacle for Scan Point: %f and here the Angle %f", i, detectedRanges[i], 2 * std::abs(relative_angle));
                         wall_near = true;
                     }
@@ -75,18 +78,16 @@ namespace sideways_inter
                 temp_goal_ = start;
 
                 // calculating position for temporary goal
-                temp_goal_.pose.position.x -= 2*temp_goal_distance_ * cos(theta + M_PI / 2.0);
-                temp_goal_.pose.position.y -= 2*temp_goal_distance_ * sin(theta + M_PI / 2.0);
+                temp_goal_.pose.position.x -= 1.5 * temp_goal_distance_ * cos(theta + M_PI / 4.0);
+                temp_goal_.pose.position.y -= 1.5 * temp_goal_distance_ * sin(theta + M_PI / 4.0);
                 temp_goal_.pose.orientation = tf::createQuaternionMsgFromYaw(tf::getYaw(temp_goal_.pose.orientation));
                 temp_goal_.header.frame_id = start.header.frame_id;
                 new_goal_set_ = true;
-
             }
 
             // nothing else to compute
-            if(caution && new_goal_set_)
+            if (caution && new_goal_set_)
                 break;
-
         }
 
         speed_ = caution ? changed_max_vel_x_param_ : max_vel_x_param_;
@@ -94,13 +95,14 @@ namespace sideways_inter
 
         if (new_goal_set_)
         {
-            if(wall_near) {
+            if (wall_near)
+            {
                 ROS_ERROR("AVOIDED COLLISION WITH OBSTACLE. CONTINUE NORMAL PLANNING");
                 new_goal_set_ = false;
                 plan = plan_;
                 return 0;
-            }               
-            //calculate distance to temporary goal
+            }
+            // calculate distance to temporary goal
             double distance_to_temp_goal_ = std::sqrt(std::pow(temp_goal_.pose.position.x - robot_x, 2) + std::pow(temp_goal_.pose.position.y - robot_y, 2));
 
             // Clear the existing plan and add temp_goal
@@ -112,7 +114,6 @@ namespace sideways_inter
                 // Set speed to 0.0 when reaching temp_goal
                 ROS_INFO("Reached temp_goal. Resetting goal and setting speed to 0.0 for 5 seconds.");
 
-                
                 speed_ = 0.0;
 
                 // Wait for 5 seconds
@@ -124,7 +125,6 @@ namespace sideways_inter
                 ROS_INFO("Resumed with the previous speed.");
                 new_goal_set_ = false;
             }
-            
         }
         else
             plan = plan_;
@@ -140,10 +140,10 @@ namespace sideways_inter
     }
 
     void SidewaysInter::semanticCallback(const pedsim_msgs::SemanticData::ConstPtr &message)
-    //turns our semantic layer data into points we can use to calculate distance
+    // turns our semantic layer data into points we can use to calculate distance
     {
         boost::unique_lock<boost::mutex> lock(plan_mtx_);
-        
+
         semanticPoints.clear();
         for (const auto &point : message->points)
         {
@@ -155,7 +155,7 @@ namespace sideways_inter
         }
     }
 
-    void SidewaysInter::laserScanCallback(const sensor_msgs::LaserScan::ConstPtr& message)
+    void SidewaysInter::laserScanCallback(const sensor_msgs::LaserScan::ConstPtr &message)
     {
         boost::unique_lock<boost::mutex> lock(plan_mtx_);
 
@@ -185,38 +185,42 @@ namespace sideways_inter
         std::string semantic_layer = "/pedsim_agents/semantic/pedestrian";
         nh_ = ros::NodeHandle("~");
         subscriber_ = nh_.subscribe(semantic_layer, 1, &SidewaysInter::semanticCallback, this);
-        dangerPublisher = nh_.advertise<std_msgs::String>("Danger", 10);  
+        dangerPublisher = nh_.advertise<std_msgs::String>("Danger", 10);
 
-        //get topic for our scan
+        // get topic for our scan
         std::string scan_topic_name;
         std::string helios_points_topic_name;
-        if (!nh_.getParam(node_namespace_+"/move_base_flex/local_costmap/obstacles_layer/scan/topic", scan_topic_name)){
+        if (!nh_.getParam(node_namespace_ + "/move_base_flex/local_costmap/obstacles_layer/scan/topic", scan_topic_name))
+        {
             ROS_ERROR("Failed to get parameter %s/move_base_flex/local_costmap/obstacles_layer/scan/topic", node_namespace_.c_str());
-            if (!nh_.getParam(node_namespace_+"/move_base_flex/local_costmap/obstacles_layer/helios_points/topic", helios_points_topic_name)){
+            if (!nh_.getParam(node_namespace_ + "/move_base_flex/local_costmap/obstacles_layer/helios_points/topic", helios_points_topic_name))
+            {
                 ROS_ERROR("Failed to get parameter %s/move_base_flex/local_costmap/obstacles_layer/helios_points/topic", node_namespace_.c_str());
             }
         }
-        if(!scan_topic_name.empty()){
+        if (!scan_topic_name.empty())
+        {
             laser_scan_subscriber_ = nh_.subscribe(scan_topic_name, 1, &SidewaysInter::laserScanCallback, this);
         }
-        //if(!helios_points_topic_name.empty()){
-        //    helios_points_subscriber_ = nh_.subscribe(helios_points_topic_name, 1, &SidewaysInter::pointCloudCallback, this);
-        //}
-        
+        // if(!helios_points_topic_name.empty()){
+        //     helios_points_subscriber_ = nh_.subscribe(helios_points_topic_name, 1, &SidewaysInter::pointCloudCallback, this);
+        // }
+
         // get our local planner name
         std::string planner_keyword;
-        if (!nh_.getParam(node_namespace_+"/local_planner", planner_keyword)){
+        if (!nh_.getParam(node_namespace_ + "/local_planner", planner_keyword))
+        {
             ROS_ERROR("Failed to get parameter %s/local_planner", node_namespace_.c_str());
         }
         std::string local_planner_name = inter_util::InterUtil::getLocalPlanner(planner_keyword);
         // get the starting parameter for max_vel_x from our planner
-        if (!nh_.getParam(node_namespace_+"/move_base_flex/"+ local_planner_name +"/max_vel_x", max_vel_x_param_))
+        if (!nh_.getParam(node_namespace_ + "/move_base_flex/" + local_planner_name + "/max_vel_x", max_vel_x_param_))
         {
             ROS_ERROR("Failed to get parameter %s/move_base_flex/%s/max_vel_x", node_namespace_.c_str(), local_planner_name.c_str());
             return;
         }
         // Create service client for the Reconfigure service
-        setParametersClient_ = nh_.serviceClient<dynamic_reconfigure::Reconfigure>(node_namespace_+"/move_base_flex/"+ local_planner_name+"/set_parameters");
+        setParametersClient_ = nh_.serviceClient<dynamic_reconfigure::Reconfigure>(node_namespace_ + "/move_base_flex/" + local_planner_name + "/set_parameters");
         dynamic_reconfigure::Server<sideways_inter::sidewaysInterConfig> server;
         server.setCallback(boost::bind(&SidewaysInter::reconfigure, this, _1, _2));
 
@@ -231,7 +235,7 @@ namespace sideways_inter
     {
         boost::unique_lock<boost::mutex> lock(plan_mtx_);
 
-        //updating values from config
+        // updating values from config
         ped_minimum_distance_ = config.ped_minimum_distance;
         temp_goal_distance_ = config.temp_goal_distance;
         caution_detection_range_ = config.caution_detection_range;

@@ -32,7 +32,7 @@ namespace polite_inter
         double robot_z = start.pose.position.z;
         bool caution = false;
         bool wall_near = false;
-            
+
         std::vector<double> distances;
         distances.empty();
 
@@ -41,8 +41,8 @@ namespace polite_inter
             double distance = std::sqrt(std::pow(point.x - robot_x, 2) + std::pow(point.y - robot_y, 2)) + std::pow(point.z - robot_z, 2);
             distances.push_back(distance);
 
-            //calculates if ped is behind the robot to determine if he can continue to drive or set temp_goal
-            double angle_to_point = atan2(point.x-robot_x, point.y-robot_y);
+            // calculates if ped is behind the robot to determine if he can continue to drive or set temp_goal
+            double angle_to_point = atan2(point.x - robot_x, point.y - robot_y);
             double theta = tf::getYaw(start.pose.orientation);
             double angle_diff = angles::shortest_angular_distance(theta, angle_to_point);
 
@@ -54,9 +54,11 @@ namespace polite_inter
                 // here we check if the scan is:
                 // behind the robot, not a pedestrian and the temp goal would be in or behind the scanned object
                 // to determine if the scan is a static obstacle
-                if ((2*std::abs(relative_angle) <= M_PI) && (detectedRanges[i] <= temp_goal_distance_) && !isPed){
-                    if(detectedRanges[i] <= 0.6){
-                        //TODO: Get robot size to determine appropiate value (currently hardcoded 0.6 for jackal)
+                if ((2 * std::abs(relative_angle) <= M_PI) && (detectedRanges[i] <= temp_goal_distance_) && !isPed)
+                {
+                    if (detectedRanges[i] <= 0.6)
+                    {
+                        // TODO: Get robot size to determine appropiate value (currently hardcoded 0.6 for jackal)
                         ROS_INFO("Detected Range[%zu] that should be a static obstacle for Scan Point: %f and here the Angle %f", i, detectedRanges[i], 2 * std::abs(relative_angle));
                         wall_near = true;
                     }
@@ -80,22 +82,23 @@ namespace polite_inter
                 temp_goal_.header.frame_id = start.header.frame_id;
                 new_goal_set_ = true;
             }
-            
+
             // nothing else to compute
-            if(caution && new_goal_set_)
+            if (caution && new_goal_set_)
                 break;
         }
         speed_ = caution ? changed_max_vel_x_param_ : max_vel_x_param_;
-        inter_util::InterUtil::checkDanger(dangerPublisher, distances, 0.6);     
+        inter_util::InterUtil::checkDanger(dangerPublisher, distances, 0.6);
         if (new_goal_set_)
         {
-            if(wall_near) {
+            if (wall_near)
+            {
                 ROS_ERROR("AVOIDED COLLISION WITH OBSTACLE. CONTINUE NORMAL PLANNING");
                 new_goal_set_ = false;
                 plan = plan_;
                 return 0;
-            }   
-            //calculate distance to temporary goal
+            }
+            // calculate distance to temporary goal
             double distance_to_temp_goal = std::sqrt(std::pow(temp_goal_.pose.position.x - robot_x, 2) + std::pow(temp_goal_.pose.position.y - robot_y, 2));
 
             // Clear the existing plan and add temp_goal
@@ -122,7 +125,7 @@ namespace polite_inter
     }
 
     void PoliteInter::semanticCallback(const pedsim_msgs::SemanticData::ConstPtr &message)
-    //turns our semantic layer data into points we can use to calculate distance
+    // turns our semantic layer data into points we can use to calculate distance
     {
         boost::unique_lock<boost::mutex> lock(plan_mtx_);
 
@@ -137,7 +140,7 @@ namespace polite_inter
         }
     }
 
-    void PoliteInter::laserScanCallback(const sensor_msgs::LaserScan::ConstPtr& message)
+    void PoliteInter::laserScanCallback(const sensor_msgs::LaserScan::ConstPtr &message)
     {
         boost::unique_lock<boost::mutex> lock(plan_mtx_);
 
@@ -167,38 +170,42 @@ namespace polite_inter
         std::string semantic_layer = "/pedsim_agents/semantic/pedestrian";
         nh_ = ros::NodeHandle("~");
         subscriber_ = nh_.subscribe(semantic_layer, 1, &PoliteInter::semanticCallback, this);
-        dangerPublisher = nh_.advertise<std_msgs::String>("Danger", 10);  
+        dangerPublisher = nh_.advertise<std_msgs::String>("Danger", 10);
 
-        //get topic for our scan
+        // get topic for our scan
         std::string scan_topic_name;
         std::string helios_points_topic_name;
-        if (!nh_.getParam(node_namespace_+"/move_base_flex/local_costmap/obstacles_layer/scan/topic", scan_topic_name)){
+        if (!nh_.getParam(node_namespace_ + "/move_base_flex/local_costmap/obstacles_layer/scan/topic", scan_topic_name))
+        {
             ROS_ERROR("Failed to get parameter %s/move_base_flex/local_costmap/obstacles_layer/scan/topic", node_namespace_.c_str());
-            if (!nh_.getParam(node_namespace_+"/move_base_flex/local_costmap/obstacles_layer/helios_points/topic", helios_points_topic_name)){
+            if (!nh_.getParam(node_namespace_ + "/move_base_flex/local_costmap/obstacles_layer/helios_points/topic", helios_points_topic_name))
+            {
                 ROS_ERROR("Failed to get parameter %s/move_base_flex/local_costmap/obstacles_layer/helios_points/topic", node_namespace_.c_str());
             }
         }
-        if(!scan_topic_name.empty()){
+        if (!scan_topic_name.empty())
+        {
             laser_scan_subscriber_ = nh_.subscribe(scan_topic_name, 1, &PoliteInter::laserScanCallback, this);
         }
-        //if(!helios_points_topic_name.empty()){
-        //    helios_points_subscriber_ = nh_.subscribe(helios_points_topic_name, 1, &PoliteInter::pointCloudCallback, this);
-        //}
+        // if(!helios_points_topic_name.empty()){
+        //     helios_points_subscriber_ = nh_.subscribe(helios_points_topic_name, 1, &PoliteInter::pointCloudCallback, this);
+        // }
 
         // get our local planner name
         std::string planner_keyword;
-        if (!nh_.getParam(node_namespace_+"/local_planner", planner_keyword)){
+        if (!nh_.getParam(node_namespace_ + "/local_planner", planner_keyword))
+        {
             ROS_ERROR("Failed to get parameter %s/local_planner", node_namespace_.c_str());
         }
         std::string local_planner_name = inter_util::InterUtil::getLocalPlanner(planner_keyword);
         // get the starting parameter for max_vel_x from our planner
-        if (!nh_.getParam(node_namespace_+"/move_base_flex/"+ local_planner_name +"/max_vel_x", max_vel_x_param_))
+        if (!nh_.getParam(node_namespace_ + "/move_base_flex/" + local_planner_name + "/max_vel_x", max_vel_x_param_))
         {
             ROS_ERROR("Failed to get parameter %s/move_base_flex/%s/max_vel_x", node_namespace_.c_str(), local_planner_name.c_str());
             return;
         }
         // Create service client for the Reconfigure service
-        setParametersClient_ = nh_.serviceClient<dynamic_reconfigure::Reconfigure>(node_namespace_+"/move_base_flex/"+ local_planner_name+"/set_parameters");
+        setParametersClient_ = nh_.serviceClient<dynamic_reconfigure::Reconfigure>(node_namespace_ + "/move_base_flex/" + local_planner_name + "/set_parameters");
         dynamic_reconfigure::Server<polite_inter::PoliteInterConfig> server;
         server.setCallback(boost::bind(&PoliteInter::reconfigure, this, _1, _2));
 
@@ -212,7 +219,7 @@ namespace polite_inter
     void PoliteInter::reconfigure(polite_inter::PoliteInterConfig &config, uint32_t level)
     {
         boost::unique_lock<boost::mutex> lock(plan_mtx_);
-        //updating values from config
+        // updating values from config
         ped_minimum_distance_ = config.ped_minimum_distance;
         temp_goal_distance_ = config.temp_goal_distance;
         caution_detection_range_ = config.caution_detection_range;
