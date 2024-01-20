@@ -4,8 +4,12 @@
 #include <ros/ros.h>
 #include <mbf_costmap_core/costmap_inter.h>
 #include <boost/thread/mutex.hpp>
-#include <costmap_2d/GetDump.h>
 #include <dynamic_reconfigure/server.h>
+#include <laser_geometry/laser_geometry.h>
+#include <sensor_msgs/PointCloud2.h>
+#include <sensor_msgs/PointCloud.h>
+#include <sensor_msgs/LaserScan.h>
+#include <sensor_msgs/point_cloud_conversion.h>
 #include <polite_inter/PoliteInterConfig.h>
 
 #include <std_msgs/Float64.h>
@@ -82,6 +86,7 @@ namespace polite_inter
         std::string node_namespace_;
 
         ros::NodeHandle nh_;
+        ros::Publisher dangerPublisher;  
 
         // default values
         // change in PoliteInter.cfg to your preference
@@ -90,13 +95,25 @@ namespace polite_inter
         double ped_minimum_distance_ = 2.0;
         double temp_goal_distance_ = 2.0;
         double temp_goal_tolerance_ = 0.2;
+        double danger_threshold = 0.6;
         double fov_ = M_PI;
+        // the default fov value translates to 135 degrees
+        // PI would be 180 degrees
+        // we use it to detect if a scan is in the intervall of
+        // [M_PI-wall_detect_fov_,wall_detect_fov_]
+        // which is why it needs to be <= M_PI
+        double wall_detect_fov_ = (3*M_PI)/4;
 
+        // variables to control the speed
         double speed_;
         double last_speed_;
         std::thread velocity_thread_;
 
+        laser_geometry::LaserProjection projector_;  ///< @brief Used to project laser scans into point clouds
+
         ros::Subscriber subscriber_;
+        ros::Subscriber laser_scan_subscriber_;
+        ros::Subscriber helios_points_subscriber_;
         
         ros::ServiceClient setParametersClient_;
 
@@ -110,9 +127,13 @@ namespace polite_inter
         dynamic_reconfigure::DoubleParameter double_param_;
         dynamic_reconfigure::Config conf_;
         std::vector<geometry_msgs::Point32> semanticPoints;
+        std::vector<double> detectedRanges;
+        std::vector<double> detectedAngles;
 
         void reconfigure(polite_inter::PoliteInterConfig &config, uint32_t level);
         void semanticCallback(const pedsim_msgs::SemanticData::ConstPtr& message);
+        void laserScanCallback(const sensor_msgs::LaserScan::ConstPtr& msg);
+        //void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& msg);
         void setMaxVelocityThread();
     };
 }
