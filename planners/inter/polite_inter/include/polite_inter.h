@@ -5,6 +5,10 @@
 #include <mbf_costmap_core/costmap_inter.h>
 #include <boost/thread/mutex.hpp>
 #include <dynamic_reconfigure/server.h>
+#include <sensor_msgs/PointCloud2.h>
+#include <sensor_msgs/PointCloud.h>
+#include <sensor_msgs/LaserScan.h>
+#include <sensor_msgs/point_cloud_conversion.h>
 #include <polite_inter/PoliteInterConfig.h>
 
 #include <std_msgs/Float64.h>
@@ -99,6 +103,8 @@ namespace polite_inter
         std::thread velocity_thread_;
 
         ros::Subscriber subscriber_;
+        ros::Subscriber laser_scan_subscriber_;
+        ros::Subscriber helios_points_subscriber_;
         
         ros::ServiceClient setParametersClient_;
 
@@ -115,6 +121,8 @@ namespace polite_inter
 
         void reconfigure(polite_inter::PoliteInterConfig &config, uint32_t level);
         void semanticCallback(const pedsim_msgs::SemanticData::ConstPtr& message);
+        void laserScanCallback(const sensor_msgs::LaserScan::ConstPtr& msg);
+        //void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& msg);
         void setMaxVelocityThread();
     };
 }

@@ -10,6 +10,10 @@
 #include <ros/ros.h>
 #include <ros/master.h>
 #include <geometry_msgs/Point32.h>
+#include <sensor_msgs/PointCloud2.h>
+#include <sensor_msgs/PointCloud.h>
+#include <sensor_msgs/LaserScan.h>
+#include <sensor_msgs/point_cloud_conversion.h>
 #include <dynamic_reconfigure/Reconfigure.h>
 #include <dynamic_reconfigure/Config.h>
 #include <angles/angles.h>
@@ -114,6 +118,15 @@ namespace polite_inter
         }
     }
 
+    void PoliteInter::laserScanCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
+    {
+        boost::unique_lock<boost::mutex> lock(plan_mtx_);
+        for (size_t i = 0; i < msg->ranges.size(); ++i)
+        {
+            ROS_ERROR("Range[%zu]: %f", i, msg->ranges[i]);
+        }
+    }
+
     void PoliteInter::initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros, costmap_2d::Costmap2DROS *local_costmap_ros)
     {
         this->name = name;
@@ -121,8 +134,26 @@ namespace polite_inter
         std::string semantic_layer = "/pedsim_agents/semantic/pedestrian";
         nh_ = ros::NodeHandle("~");
         subscriber_ = nh_.subscribe(semantic_layer, 1, &PoliteInter::semanticCallback, this);
+
         dangerPublisher = nh_.advertise<std_msgs::String>("Danger", 10);  
 
+        //get topic for our scan
+        std::string scan_topic_name;
+        std::string helios_points_topic_name;
+        if (!nh_.getParam(node_namespace_+"/move_base_flex/local_costmap/obstacles_layer/scan/topic", scan_topic_name)){
+            ROS_ERROR("Failed to get parameter %s/move_base_flex/local_costmap/obstacles_layer/scan/topic", node_namespace_.c_str());
+            if (!nh_.getParam(node_namespace_+"/move_base_flex/local_costmap/obstacles_layer/helios_points/topic", helios_points_topic_name)){
+                ROS_ERROR("Failed to get parameter %s/move_base_flex/local_costmap/obstacles_layer/helios_points/topic", node_namespace_.c_str());
+            }
+        }
+        if(!scan_topic_name.empty()){
+            laser_scan_subscriber_ = nh_.subscribe(scan_topic_name, 1, &PoliteInter::laserScanCallback, this);
+        }
+        //if(!helios_points_topic_name.empty()){
+        //    helios_points_subscriber_ = nh_.subscribe(helios_points_topic_name, 1, &PoliteInter::pointCloudCallback, this);
+        //}
+
+        ROS_ERROR("TES TEST ETESTE TESTST ETESTE %s", scan_topic_name.c_str());
         // get our local planner name
         std::string planner_keyword;
         if (!nh_.getParam(node_namespace_+"/local_planner", planner_keyword)){
