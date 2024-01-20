@@ -176,7 +176,7 @@ namespace sideways_inter
         ///////////////////////////////////////////////////////////////////////// CODEABSCHNITT FÜR WALLS
         //Mögliche Topics zum lesen der Walls :/pedsim_simulator/simulated_walls, /pedsim_visualizer/walls, /pedsim_visualizer/walls_array
         nh_2= ros::NodeHandle("~");
-        std::string walls_data = "/pedsim_visualizer/walls";
+        std::string walls_data = "/pedsim_simulator/simulated_walls";
         subscriber_walls= nh_2.subscribe(walls_data, 1, &SidewaysInter::wallsCallback, this);
 
 
