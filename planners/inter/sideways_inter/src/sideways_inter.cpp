@@ -15,6 +15,7 @@
 #include <angles/angles.h>
 #include <base_local_planner/point_grid.h>
 
+
 PLUGINLIB_EXPORT_CLASS(sideways_inter::SidewaysInter, mbf_costmap_core::CostmapInter)
 
 namespace sideways_inter
@@ -60,11 +61,12 @@ namespace sideways_inter
                 temp_goal_ = start;
 
                 // calculating position for temporary goal
-                temp_goal_.pose.position.x -= temp_goal_distance_ * cos(theta + M_PI / 4.0);
-                temp_goal_.pose.position.y -= temp_goal_distance_ * sin(theta + M_PI / 4.0);
+                temp_goal_.pose.position.x -= 2*temp_goal_distance_ * cos(theta + M_PI / 2.0);
+                temp_goal_.pose.position.y -= 2*temp_goal_distance_ * sin(theta + M_PI / 2.0);
                 temp_goal_.pose.orientation = tf::createQuaternionMsgFromYaw(tf::getYaw(temp_goal_.pose.orientation));
                 temp_goal_.header.frame_id = start.header.frame_id;
                 new_goal_set_ = true;
+
             }
 
             // nothing else to compute
@@ -87,9 +89,22 @@ namespace sideways_inter
 
             if (distance_to_temp_goal_ <= temp_goal_tolerance_)
             {
-                ROS_INFO("Reached temp_goal. Resetting goal.");
-                new_goal_set_ = false;
+            // Set speed to 0.0 when reaching temp_goal
+            ROS_INFO("Reached temp_goal. Resetting goal and setting speed to 0.0 for 5 seconds.");
+
+            
+            speed_ = 0.0;
+
+            // Wait for 5 seconds
+            std::this_thread::sleep_for(std::chrono::seconds(5));
+
+            // Reset speed to the previous value (last_speed_)
+            speed_ = last_speed_;
+
+            ROS_INFO("Resumed with the previous speed.");
+            new_goal_set_ = false;
             }
+            
         }
         else
             plan = plan_;
@@ -116,10 +131,46 @@ namespace sideways_inter
             pedestrianPoint.x = point.location.x;
             pedestrianPoint.y = point.location.y;
             pedestrianPoint.z = point.location.z;
-
             semanticPoints.push_back(pedestrianPoint);
         }
     }
+
+
+
+    void SidewaysInter::wallsCallback(const pedsim_msgs::Walls::ConstPtr &message)
+    {
+        boost::unique_lock<boost::mutex> lock(plan_mtx_);
+
+        wallInfos.clear();
+        for (const auto &wall : message->walls)
+        {
+            WallInfo wallInfo;
+            wallInfo.start.x = wall.start.x;
+            wallInfo.start.y = wall.start.y;
+            wallInfo.start.z = wall.start.z;
+
+            wallInfo.end.x = wall.end.x;
+            wallInfo.end.y = wall.end.y;
+            wallInfo.end.z = wall.end.z;
+
+            wallInfo.layer = wall.layer;
+
+            ROS_ERROR("Wall Info: Start(%f, %f, %f), End(%f, %f, %f), Layer(%d)",
+                    wallInfo.start.x, wallInfo.start.y, wallInfo.start.z,
+                    wallInfo.end.x, wallInfo.end.y, wallInfo.end.z,
+                    wallInfo.layer);
+
+            wallInfos.push_back(wallInfo);
+        }
+    }
+
+
+
+
+
+
+
+
 
     void SidewaysInter::initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros, costmap_2d::Costmap2DROS *local_costmap_ros)
     {
@@ -127,10 +178,10 @@ namespace sideways_inter
         std::string node_namespace_ = ros::this_node::getNamespace();
 
         std::string semantic_layer = "/pedsim_agents/semantic/pedestrian";
+
         nh_ = ros::NodeHandle("~");
         subscriber_ = nh_.subscribe(semantic_layer, 1, &SidewaysInter::semanticCallback, this);
         dangerPublisher = nh_.advertise<std_msgs::String>("Danger", 10);  
-
         // get our local planner name
         std::string planner_keyword;
         if (!nh_.getParam(node_namespace_+"/local_planner", planner_keyword)){
@@ -200,6 +251,18 @@ namespace sideways_inter
 
                 // Update last_speed_ to avoid unnecessary calls
                 last_speed_ = speed_;
+            }
+
+            if (speed_ == 0.0)
+            {
+                ROS_INFO("Speed is 0.0. Waiting for 5 seconds...");
+                lock.unlock();
+                std::this_thread::sleep_for(std::chrono::seconds(5));
+                ROS_INFO("Resuming with the previous speed.");
+                lock.lock();
+
+                // After waiting, set speed_ back to the previous value
+                speed_ = last_speed_;
             }
 
             // Unlock and sleep

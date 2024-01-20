@@ -9,6 +9,10 @@
 
 #include <std_msgs/Float64.h>
 #include <thread>
+#include <pedsim_msgs/Walls.h>
+#include <costmap_2d/costmap_2d_publisher.h>
+
+
 
 namespace sideways_inter
 {
@@ -69,6 +73,16 @@ namespace sideways_inter
 
 
     private:
+
+        //structs
+
+        struct WallInfo
+        {
+            geometry_msgs::Point start;
+            geometry_msgs::Point end;
+            uint8_t layer;
+        };
+        
         // mutexes
         boost::mutex plan_mtx_;
         boost::mutex speed_mtx_;
@@ -81,6 +95,7 @@ namespace sideways_inter
         std::string node_namespace_;
 
         ros::NodeHandle nh_;
+        ros::NodeHandle nh_2;
 
         // default values
         // change in SidewaysInter.cfg to your preference
@@ -103,6 +118,8 @@ namespace sideways_inter
 
         ros::ServiceClient setParametersClient_;
 
+        ros::Time start_timer_;
+
         geometry_msgs::PoseStamped temp_goal_;
         bool new_goal_set_ = false;
         
@@ -113,9 +130,12 @@ namespace sideways_inter
         dynamic_reconfigure::DoubleParameter double_param_;
         dynamic_reconfigure::Config conf_;
         std::vector<geometry_msgs::Point32> semanticPoints;
+        std::vector<WallInfo> wallInfos;
+
 
         void reconfigure(sideways_inter::sidewaysInterConfig &config, uint32_t level);
         void semanticCallback(const pedsim_msgs::SemanticData::ConstPtr& message);
+        void wallsCallback(const pedsim_msgs::Walls::ConstPtr &message);
         void setMaxVelocityThread();
     };
 }
