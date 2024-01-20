@@ -10,10 +10,7 @@
 #include <ros/ros.h>
 #include <ros/master.h>
 #include <geometry_msgs/Point32.h>
-#include <sensor_msgs/PointCloud2.h>
-#include <sensor_msgs/PointCloud.h>
-#include <sensor_msgs/LaserScan.h>
-#include <sensor_msgs/point_cloud_conversion.h>
+#include <sensor_msgs/point_cloud2_iterator.h>
 #include <dynamic_reconfigure/Reconfigure.h>
 #include <dynamic_reconfigure/Config.h>
 #include <angles/angles.h>
@@ -45,6 +42,19 @@ namespace polite_inter
             double angle_to_point = atan2(point.x-robot_x, point.y-robot_y);
             double theta = tf::getYaw(start.pose.orientation);
             double angle_diff = angles::shortest_angular_distance(theta, angle_to_point);
+
+            for (size_t i = 0; i < detectedRanges.size(); ++i)
+            {
+                // check if scan could be pedestrian and if it is ignore it
+                bool isPed = (detectedRanges[i] - 0.2 <= distance) && (distance <= detectedRanges[i] + 0.2);
+                double relative_angle = angles::shortest_angular_distance(theta, detectedAngles[i]);
+                // here we check if the scan is:
+                // behind the robot, not a pedestrian and the temp goal woul be in or behind the scanned object
+                // to determine if the scan is a static obstacle
+                if ((M_PI - wall_detect_fov_ <= (2*std::abs(relative_angle)) <= wall_detect_fov_) && (detectedRanges[i] <= temp_goal_distance_) && !isPed){
+                    ROS_ERROR("Detected Range[%zu] that should be static obstacle for Scan Point: %f and here the Angle %f", i, detectedRanges[i], 2 * std::abs(relative_angle));
+                }
+            }
 
             distances.push_back(distance);
 
@@ -118,12 +128,26 @@ namespace polite_inter
         }
     }
 
-    void PoliteInter::laserScanCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
+    void PoliteInter::laserScanCallback(const sensor_msgs::LaserScan::ConstPtr& message)
     {
         boost::unique_lock<boost::mutex> lock(plan_mtx_);
-        for (size_t i = 0; i < msg->ranges.size(); ++i)
+
+        // Set a maximum distance threshold for wall detection (adjust as needed)
+        double max_detection_range = caution_detection_range_ + 0.5; // detect every obstacle in his caution_detection_range plus 0.5 metres
+
+        detectedRanges.clear();
+        // Accessing and printing range data
+        for (size_t i = 0; i < message->ranges.size(); ++i)
         {
-            ROS_ERROR("Range[%zu]: %f", i, msg->ranges[i]);
+            double angle = message->angle_min + i * message->angle_increment;
+            double range = message->ranges[i];
+
+            // Check if the range is under the maximum detection range
+            if (range < max_detection_range)
+            {
+                detectedRanges.push_back(range);
+                detectedAngles.push_back(angle);
+            }
         }
     }
 
@@ -153,7 +177,6 @@ namespace polite_inter
         //    helios_points_subscriber_ = nh_.subscribe(helios_points_topic_name, 1, &PoliteInter::pointCloudCallback, this);
         //}
 
-        ROS_ERROR("TES TEST ETESTE TESTST ETESTE %s", scan_topic_name.c_str());
         // get our local planner name
         std::string planner_keyword;
         if (!nh_.getParam(node_namespace_+"/local_planner", planner_keyword)){
@@ -188,6 +211,7 @@ namespace polite_inter
         cautious_speed_ = config.cautious_speed;
         temp_goal_tolerance_ = config.temp_goal_tolerance;
         fov_ = config.fov;
+        wall_detect_fov_ = config.wall_detect_fov;
         danger_threshold = config.danger_threshold;
         changed_max_vel_x_param_ = (cautious_speed_ * max_vel_x_param_);
     }

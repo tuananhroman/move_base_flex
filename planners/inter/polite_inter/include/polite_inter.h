@@ -5,6 +5,7 @@
 #include <mbf_costmap_core/costmap_inter.h>
 #include <boost/thread/mutex.hpp>
 #include <dynamic_reconfigure/server.h>
+#include <laser_geometry/laser_geometry.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/PointCloud.h>
 #include <sensor_msgs/LaserScan.h>
@@ -96,11 +97,16 @@ namespace polite_inter
         double temp_goal_tolerance_ = 0.2;
         double danger_threshold = 0.6;
         double fov_ = M_PI;
+        // the default fov value translates to 135 degrees
+        // PI would be 180 degrees
+        double wall_detect_fov_ = (3*M_PI)/4;
 
         // variables to control the speed
         double speed_;
         double last_speed_;
         std::thread velocity_thread_;
+
+        laser_geometry::LaserProjection projector_;  ///< @brief Used to project laser scans into point clouds
 
         ros::Subscriber subscriber_;
         ros::Subscriber laser_scan_subscriber_;
@@ -118,6 +124,8 @@ namespace polite_inter
         dynamic_reconfigure::DoubleParameter double_param_;
         dynamic_reconfigure::Config conf_;
         std::vector<geometry_msgs::Point32> semanticPoints;
+        std::vector<double> detectedRanges;
+        std::vector<double> detectedAngles;
 
         void reconfigure(polite_inter::PoliteInterConfig &config, uint32_t level);
         void semanticCallback(const pedsim_msgs::SemanticData::ConstPtr& message);
