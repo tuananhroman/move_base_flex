@@ -2,6 +2,7 @@
 #include "../../inter_util/include/inter_util.h"
 
 #include <thread>
+#include <vector>
 
 #include <pluginlib/class_list_macros.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
@@ -22,12 +23,21 @@ namespace aggressive_inter
         double robot_x = start.pose.position.x;
         double robot_y = start.pose.position.y;
         double robot_z = start.pose.position.z;
-
         double minDistance = INFINITY;
+
+        std::vector<double> distances;
+        distances.empty();
         for (const auto &point : semanticPoints)
         {
             double distance = std::sqrt(std::pow(point.x - robot_x, 2) + std::pow(point.y - robot_y, 2)) + std::pow(point.z - robot_z, 2);
             minDistance = std::min(minDistance, distance);
+            distances.push_back(distance);
+        }
+        inter_util::InterUtil::checkDanger(dangerPublisher, distances, danger_threshold);
+        ROS_WARN("Danger level: %f", inter_util::InterUtil::getDangerLevel(distances));
+        ROS_WARN("Distances: ");
+        for (const double& distance : distances) {
+            ROS_WARN("%f", distance);
         }
 
         double temp_speed = max_vel_x_param_;
@@ -71,6 +81,7 @@ namespace aggressive_inter
         std::string node_namespace_ = ros::this_node::getNamespace();
         std::string semantic_layer = "/pedsim_agents/semantic/pedestrian";
         nh_ = ros::NodeHandle("~");
+        dangerPublisher = nh_.advertise<std_msgs::String>("Danger", 10);  
         subscriber_ = nh_.subscribe(semantic_layer, 1, &AggressiveInter::semanticCallback, this);
         // get our local planner name
         std::string planner_keyword;
@@ -136,5 +147,6 @@ namespace aggressive_inter
         boost::unique_lock<boost::mutex> lock(plan_mtx_);
 
         slowdown_distance = config.slowdown_distance;
+        danger_threshold = config.danger_threshold;
     }
 }

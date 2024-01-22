@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(inter_util)
 
-find_package(catkin REQUIRED)
+find_package(catkin REQUIRED COMPONENTS
+  roscpp
+)
 
 catkin_package(
   INCLUDE_DIRS include

@@ -85,6 +85,7 @@ namespace aggressive_inter
         // change in AggressiveInter.cfg to your preference
         double slowdown_distance = 5.0;
         double max_speed_ = 2;
+        double danger_threshold = 0.6;
 
         // variables to control the speed
         double speed_;
@@ -92,7 +93,7 @@ namespace aggressive_inter
         std::thread velocity_thread_;
         
         ros::Subscriber subscriber_;
-
+        ros::Publisher dangerPublisher;  
         ros::ServiceClient setParametersClient_;
 
         double max_vel_x_param_;
