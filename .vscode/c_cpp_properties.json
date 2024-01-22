@@ -14,8 +14,9 @@
         {
             "name": "ros",
             "includePath": [
-                "/home/vova/Documents/Development/reproduce/devel/include",
-                "/opt/ros/noetic/include",
+                "${workspaceFolder}/",
+                "/opt/ros/noetic/include/",
+                "/arena_ws/devel/include/",
                 "${workspaceFolder}/core/core/mbf_costmap_core/include",
                 "${workspaceFolder}/core/core/mbf_abstract_core/include",
                 "${workspaceFolder}/core/nav/mbf_abstract_nav/include",

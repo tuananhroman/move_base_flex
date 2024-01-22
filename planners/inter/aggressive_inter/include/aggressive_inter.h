@@ -1,17 +1,18 @@
-#ifndef SHORTSIGHTED_INTER_H_
-#define SHORTSIGHTED_INTER_H_
+#ifndef AGGRESSIVE_INTER_H_
+#define AGGRESSIVE_INTER_H_
 
 #include <ros/ros.h>
 #include <mbf_costmap_core/costmap_inter.h>
 #include <boost/thread/mutex.hpp>
-
 #include <dynamic_reconfigure/server.h>
-#include <shortsighted_inter/ShortsightedInterConfig.h>
+#include <aggressive_inter/AggressiveInterConfig.h>
 
-namespace shortsighted_inter
+#include <thread>
+
+namespace aggressive_inter
 {
 
-    class ShortsightedInter : public mbf_costmap_core::CostmapInter
+    class AggressiveInter : public mbf_costmap_core::CostmapInter
     {
 
         using mbf_costmap_core::CostmapInter::CostmapInter;
@@ -64,25 +65,52 @@ namespace shortsighted_inter
          * @param costmap_ros A pointer to the ROS wrapper of the costmap to use for planning
          */
         void initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros, costmap_2d::Costmap2DROS *local_costmap_ros);
+        
 
     private:
+        // mutexes
+        boost::mutex plan_mtx_;
+        boost::mutex speed_mtx_;
+
         // storage for setPlan
         std::vector<geometry_msgs::PoseStamped> plan_;
-        boost::mutex plan_mtx_;
 
         // could be used for nh
         std::string name;
+        std::string node_namespace_; 
 
-        // max vision
-        double vision_limit_ = 0.2;
+        ros::NodeHandle nh_;  
 
-        // min poses in path
-        size_t min_poses_ = 1;
+        // default values 
+        // change in AggressiveInter.cfg to your preference
+        double slowdown_distance = 5.0;
+        double max_speed_ = 2;
+        double danger_threshold = 0.6;
 
-        boost::mutex vision_cfg_mtx_;
+        // variables to control the speed
+        double speed_;
+        double last_speed_;
+        std::thread velocity_thread_;
+        
+        ros::Subscriber subscriber_;
+        ros::Publisher dangerPublisher;  
+        ros::ServiceClient setParametersClient_;
 
-        void reconfigure(shortsighted_inter::ShortsightedInterConfig &config, uint32_t level);
+        double max_vel_x_param_;
+
+        dynamic_reconfigure::Reconfigure reconfig_;
+        dynamic_reconfigure::DoubleParameter double_param_;
+        dynamic_reconfigure::Config conf_;
+        std::vector<geometry_msgs::Point32> semanticPoints;
+
+        /**
+         * @brief Sets new maximum velocity in x direction for the robot
+         * @param new_max_vel_x new max velocity in x direction, has to be greater than penality_epsilon (defined in teb_local_planner_params)
+        */
+        void reconfigure(aggressive_inter::AggressiveInterConfig &config, uint32_t level);
+        void semanticCallback(const pedsim_msgs::SemanticData::ConstPtr& message);
+        void setMaxVelocityThread();
     };
 }
 
-#endif // SHORTSIGHTED_INTER_H_
+#endif // aggressive_inter_H_

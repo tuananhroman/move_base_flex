@@ -1,17 +1,26 @@
-#ifndef SHORTSIGHTED_INTER_H_
-#define SHORTSIGHTED_INTER_H_
+#ifndef SIDEWAYS_INTER_H_
+#define SIDEWAYS_INTER_H_
 
 #include <ros/ros.h>
 #include <mbf_costmap_core/costmap_inter.h>
 #include <boost/thread/mutex.hpp>
-
 #include <dynamic_reconfigure/server.h>
-#include <shortsighted_inter/ShortsightedInterConfig.h>
+#include <laser_geometry/laser_geometry.h>
+#include <sensor_msgs/PointCloud2.h>
+#include <sensor_msgs/PointCloud.h>
+#include <sensor_msgs/LaserScan.h>
+#include <sensor_msgs/point_cloud_conversion.h>
+#include <sideways_inter/sidewaysInterConfig.h>
 
-namespace shortsighted_inter
+#include <std_msgs/Float64.h>
+#include <thread>
+
+
+
+namespace sideways_inter
 {
 
-    class ShortsightedInter : public mbf_costmap_core::CostmapInter
+    class SidewaysInter : public mbf_costmap_core::CostmapInter
     {
 
         using mbf_costmap_core::CostmapInter::CostmapInter;
@@ -65,24 +74,65 @@ namespace shortsighted_inter
          */
         void initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros, costmap_2d::Costmap2DROS *local_costmap_ros);
 
+
     private:
+        // mutexes
+        boost::mutex plan_mtx_;
+        boost::mutex speed_mtx_;
+
         // storage for setPlan
         std::vector<geometry_msgs::PoseStamped> plan_;
-        boost::mutex plan_mtx_;
 
         // could be used for nh
         std::string name;
+        std::string node_namespace_;
 
-        // max vision
-        double vision_limit_ = 0.2;
+        ros::Time start_timer_;
+        ros::NodeHandle nh_;
 
-        // min poses in path
-        size_t min_poses_ = 1;
+        // default values
+        // change in SidewaysInter.cfg to your preference
+        double caution_detection_range_ = 10.0;
+        double cautious_speed_ = 0.1;
+        double ped_minimum_distance_ = 2.0;
+        double temp_goal_distance_ = 2.0;
+        double temp_goal_tolerance_ = 0.2;
+        double fov_ = M_PI;
+        double danger_threshold = 0.6;
 
-        boost::mutex vision_cfg_mtx_;
 
-        void reconfigure(shortsighted_inter::ShortsightedInterConfig &config, uint32_t level);
+        // variables to control the speed
+        double speed_;
+        double last_speed_;
+        std::thread velocity_thread_;
+
+        ros::Subscriber subscriber_;
+        ros::Subscriber laser_scan_subscriber_;
+        ros::Subscriber helios_points_subscriber_;
+
+        ros::Publisher dangerPublisher; 
+
+        ros::ServiceClient setParametersClient_;
+
+        geometry_msgs::PoseStamped temp_goal_;
+        bool new_goal_set_ = false;
+        
+        double max_vel_x_param_;
+        double changed_max_vel_x_param_;
+
+        dynamic_reconfigure::Reconfigure reconfig_;
+        dynamic_reconfigure::DoubleParameter double_param_;
+        dynamic_reconfigure::Config conf_;
+        std::vector<geometry_msgs::Point32> semanticPoints;
+        std::vector<double> detectedRanges;
+        std::vector<double> detectedAngles;
+
+        void reconfigure(sideways_inter::sidewaysInterConfig &config, uint32_t level);
+        void semanticCallback(const pedsim_msgs::SemanticData::ConstPtr& message);
+        void laserScanCallback(const sensor_msgs::LaserScan::ConstPtr& msg);
+        //void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& msg);
+        void setMaxVelocityThread();
     };
 }
 
-#endif // SHORTSIGHTED_INTER_H_
+#endif // SIDEWAYS_INTER_H_
