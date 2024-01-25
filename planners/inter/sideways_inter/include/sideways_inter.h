@@ -87,9 +87,9 @@ namespace sideways_inter
         std::string name;
         std::string node_namespace_;
 
-        ros::Time start_timer_;
         ros::NodeHandle nh_;
 
+        
         // default values
         // change in SidewaysInter.cfg to your preference
         double caution_detection_range_ = 10.0;
@@ -99,6 +99,7 @@ namespace sideways_inter
         double temp_goal_tolerance_ = 0.2;
         double fov_ = M_PI;
         double danger_threshold = 0.6;
+        double distance;
 
 
         // variables to control the speed
