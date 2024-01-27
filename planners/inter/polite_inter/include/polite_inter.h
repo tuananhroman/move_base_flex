@@ -84,6 +84,7 @@ namespace polite_inter
         // could be used for nh
         std::string name;
         std::string node_namespace_;
+        double robot_radius;
 
         ros::NodeHandle nh_;
 
