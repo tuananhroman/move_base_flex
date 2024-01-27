@@ -59,7 +59,6 @@ namespace sideways_inter
                 {
                     // due to weird positiong with sideways behaviour the distance
                     // to detect walls is increased
-                    ROS_ERROR("TEST TEST TEST TEST TEST TEST %f", 2*robot_radius_+0.12);
                     if (detectedRanges[i] <= 2*robot_radius_+0.135)
                     {
                         // TODO: Get robot size to determine appropiate value (currently hardcoded 0.6 for jackal)
@@ -108,13 +107,8 @@ namespace sideways_inter
             // Clear the existing plan and add temp_goal
             plan.clear();
             plan.push_back(temp_goal_);
-            // Überprüfen, ob die festgelegte Zeit vergangen ist (hier: 5 Sekunden)
-            
-
-
             if ((distance_to_temp_goal_ <= temp_goal_tolerance_) || wall_near)
             {
-                // Setze Geschwindigkeit auf 0.0, warte für 5 Sekunden und setze Geschwindigkeit zurück
                 ROS_ERROR("Reached temp_goal. Setting speed to 0.0 for 5 seconds.");
                 speed_ = 0.0;
                 std::this_thread::sleep_for(std::chrono::seconds(5));
