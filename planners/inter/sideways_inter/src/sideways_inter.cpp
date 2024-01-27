@@ -59,7 +59,6 @@ namespace sideways_inter
                 {
                     // due to weird positiong with sideways behaviour the distance
                     // to detect walls is increased
-                    ROS_ERROR("TEST TEST TEST TEST %f", 2*robot_radius_+0.12);
                     if (detectedRanges[i] <= 2*robot_radius_+0.12)
                     {
                         // TODO: Get robot size to determine appropiate value (currently hardcoded 0.6 for jackal)
