@@ -59,6 +59,7 @@ namespace sideways_inter
                 {
                     // due to weird positiong with sideways behaviour the distance
                     // to detect walls is increased
+                    ROS_ERROR("TEST TEST TEST TEST %f", 2*robot_radius_+0.12);
                     if (detectedRanges[i] <= 2*robot_radius_+0.12)
                     {
                         // TODO: Get robot size to determine appropiate value (currently hardcoded 0.6 for jackal)
@@ -196,7 +197,6 @@ namespace sideways_inter
                 ROS_ERROR("Failed to get parameter %s/move_base_flex/local_costmap/obstacles_layer/helios_points/topic", node_namespace_.c_str());
             }
         }
-        double robot_radius_;
         if (!nh_.getParam("/robot_radius", robot_radius_)){
             ROS_ERROR("Failed to get parameter %s/local_planner", node_namespace_.c_str());
         }

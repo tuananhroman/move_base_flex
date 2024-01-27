@@ -183,7 +183,6 @@ namespace polite_inter
                 ROS_ERROR("Failed to get parameter %s/move_base_flex/local_costmap/obstacles_layer/helios_points/topic", node_namespace_.c_str());
             }
         }
-        double robot_radius_;
         if (!nh_.getParam("/robot_radius", robot_radius_)){
             ROS_ERROR("Failed to get parameter %s/local_planner", node_namespace_.c_str());
         }
