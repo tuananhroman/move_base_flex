@@ -59,7 +59,8 @@ namespace sideways_inter
                 {
                     // due to weird positiong with sideways behaviour the distance
                     // to detect walls is increased
-                    if (detectedRanges[i] <= 2*robot_radius_+0.12)
+                    ROS_ERROR("TEST TEST TEST TEST TEST TEST %f", 2*robot_radius_+0.12);
+                    if (detectedRanges[i] <= 2*robot_radius_+0.135)
                     {
                         // TODO: Get robot size to determine appropiate value (currently hardcoded 0.6 for jackal)
                         ROS_INFO("Detected Range[%zu] that should be a static obstacle for Scan Point: %f and here the Angle %f", i, detectedRanges[i], 2 * std::abs(relative_angle));
@@ -100,7 +101,7 @@ namespace sideways_inter
                 ROS_ERROR("AVOIDED COLLISION WITH OBSTACLE. CONTINUE NORMAL PLANNING");
                 new_goal_set_ = false;
                 plan = plan_;
-                //return 0;
+                return 0;
             }
             // calculate distance to temporary goal
             double distance_to_temp_goal_ = std::sqrt(std::pow(temp_goal_.pose.position.x - robot_x, 2) + std::pow(temp_goal_.pose.position.y - robot_y, 2));     
