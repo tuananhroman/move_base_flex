@@ -59,7 +59,7 @@ namespace sideways_inter
                 {
                     // due to weird positiong with sideways behaviour the distance
                     // to detect walls is increased
-                    if (detectedRanges[i] <= 0.65)
+                    if (detectedRanges[i] <= 2*robot_radius_+0.135)
                     {
                         // TODO: Get robot size to determine appropiate value (currently hardcoded 0.6 for jackal)
                         ROS_INFO("Detected Range[%zu] that should be a static obstacle for Scan Point: %f and here the Angle %f", i, detectedRanges[i], 2 * std::abs(relative_angle));
@@ -107,13 +107,8 @@ namespace sideways_inter
             // Clear the existing plan and add temp_goal
             plan.clear();
             plan.push_back(temp_goal_);
-            // Überprüfen, ob die festgelegte Zeit vergangen ist (hier: 5 Sekunden)
-            
-
-
             if ((distance_to_temp_goal_ <= temp_goal_tolerance_) || wall_near)
             {
-                // Setze Geschwindigkeit auf 0.0, warte für 5 Sekunden und setze Geschwindigkeit zurück
                 ROS_ERROR("Reached temp_goal. Setting speed to 0.0 for 5 seconds.");
                 speed_ = 0.0;
                 std::this_thread::sleep_for(std::chrono::seconds(5));
@@ -195,6 +190,9 @@ namespace sideways_inter
             {
                 ROS_ERROR("Failed to get parameter %s/move_base_flex/local_costmap/obstacles_layer/helios_points/topic", node_namespace_.c_str());
             }
+        }
+        if (!nh_.getParam("/robot_radius", robot_radius_)){
+            ROS_ERROR("Failed to get parameter %s/local_planner", node_namespace_.c_str());
         }
         if (!scan_topic_name.empty())
         {
