@@ -100,7 +100,7 @@ namespace sideways_inter
                 ROS_ERROR("AVOIDED COLLISION WITH OBSTACLE. CONTINUE NORMAL PLANNING");
                 new_goal_set_ = false;
                 plan = plan_;
-                return 0;
+                //return 0;
             }
             // calculate distance to temporary goal
             double distance_to_temp_goal_ = std::sqrt(std::pow(temp_goal_.pose.position.x - robot_x, 2) + std::pow(temp_goal_.pose.position.y - robot_y, 2));
@@ -116,14 +116,6 @@ namespace sideways_inter
 
                 speed_ = 0.0;
 
-                // Wait for 5 seconds
-                std::this_thread::sleep_for(std::chrono::seconds(5));
-
-                // Reset speed to the previous value (last_speed_)
-                speed_ = last_speed_;
-
-                ROS_INFO("Resumed with the previous speed.");
-                new_goal_set_ = false;
             }
         }
         else
@@ -131,6 +123,10 @@ namespace sideways_inter
 
         return 0;
     }
+
+
+
+
 
     bool SidewaysInter::setPlan(const std::vector<geometry_msgs::PoseStamped> &plan)
     {
@@ -177,6 +173,21 @@ namespace sideways_inter
             }
         }
     }
+
+
+
+    void SidewaysInter::resumeDriving(const ros::TimerEvent&)
+    {
+        ROS_INFO("Resumed with the previous speed.");
+
+        // Setzen Sie die Geschwindigkeit auf den vorherigen Wert (last_speed_)
+        speed_ = last_speed_;
+
+        // Setzen Sie new_goal_set_ auf false, um den nächsten Durchlauf zu ermöglichen
+        new_goal_set_ = false;
+    }
+
+
 
     void SidewaysInter::initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros, costmap_2d::Costmap2DROS *local_costmap_ros)
     {
@@ -276,6 +287,13 @@ namespace sideways_inter
 
                 // Update last_speed_ to avoid unnecessary calls
                 last_speed_ = speed_;
+
+                // Check if speed is set to zero, then start the timer
+                if (speed_ == 0.0)
+                {
+                    // Start Timer
+                    wait_timer = nh_.createTimer(ros::Duration(2.5), &SidewaysInter::resumeDriving, this);
+                }
             }
             // Unlock and sleep
             lock.unlock();
