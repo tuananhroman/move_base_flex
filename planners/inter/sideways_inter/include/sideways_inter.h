@@ -74,7 +74,7 @@ namespace sideways_inter
          */
         void initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros, costmap_2d::Costmap2DROS *local_costmap_ros);
 
-
+        void resumeDriving(const ros::TimerEvent&);
     private:
         // mutexes
         boost::mutex plan_mtx_;
@@ -88,6 +88,8 @@ namespace sideways_inter
         std::string node_namespace_;
         double robot_radius_;
 
+
+        ros::Timer wait_timer;
         ros::NodeHandle nh_;
 
         
