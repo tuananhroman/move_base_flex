@@ -178,13 +178,14 @@ namespace sideways_inter
 
     void SidewaysInter::resumeDriving(const ros::TimerEvent&)
     {
-        ROS_INFO("Resumed with the previous speed.");
+        ROS_ERROR("Resumed with the previous speed.");
 
         // set speed to the previous value (last_speed_)
         speed_ = last_speed_;
 
         // set variable to false for next loop
         new_goal_set_ = false;
+
     }
 
 
@@ -291,8 +292,9 @@ namespace sideways_inter
                 // Check if speed is set to zero, then start the timer
                 if (speed_ == 0.0)
                 {               
-                    // Start Timer
-                    wait_timer = nh_.createTimer(ros::Duration(2.5), &SidewaysInter::resumeDriving, this);
+                    // Start Timer and configure it as oneshot time (oneshot=true)
+                    wait_timer = nh_.createTimer(ros::Duration(2.5), &SidewaysInter::resumeDriving, this,true);
+                    
                 }
             }
             // Unlock 
