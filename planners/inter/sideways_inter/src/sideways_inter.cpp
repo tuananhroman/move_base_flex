@@ -59,7 +59,7 @@ namespace sideways_inter
                 {
                     // due to weird positiong with sideways behaviour the distance
                     // to detect walls is increased
-                    if (detectedRanges[i] <= 0.65)
+                    if (detectedRanges[i] <= 2*robot_radius_+0.135)
                     {
                         // TODO: Get robot size to determine appropiate value (currently hardcoded 0.6 for jackal)
                         ROS_INFO("Detected Range[%zu] that should be a static obstacle for Scan Point: %f and here the Angle %f", i, detectedRanges[i], 2 * std::abs(relative_angle));
@@ -78,9 +78,9 @@ namespace sideways_inter
                 temp_goal_ = start;
 
                 // calculating position for temporary goal
-                temp_goal_.pose.position.x -= 1.5 * temp_goal_distance_ * cos(theta + M_PI / 4.0);
-                temp_goal_.pose.position.y -= 1.5 * temp_goal_distance_ * sin(theta + M_PI / 4.0);
-                temp_goal_.pose.orientation = tf::createQuaternionMsgFromYaw(tf::getYaw(temp_goal_.pose.orientation));
+                temp_goal_.pose.position.x -= 1.5 * temp_goal_distance_ * cos(theta  + M_PI / 4.0);
+                temp_goal_.pose.position.y -= 1.5 * temp_goal_distance_ * sin(theta  + M_PI / 4.0);
+                temp_goal_.pose.orientation = tf::createQuaternionMsgFromYaw(theta);
                 temp_goal_.header.frame_id = start.header.frame_id;
                 new_goal_set_ = true;
             }
@@ -103,20 +103,22 @@ namespace sideways_inter
                 
             }
             // calculate distance to temporary goal
-            double distance_to_temp_goal_ = std::sqrt(std::pow(temp_goal_.pose.position.x - robot_x, 2) + std::pow(temp_goal_.pose.position.y - robot_y, 2));
-
+            double distance_to_temp_goal_ = std::sqrt(std::pow(temp_goal_.pose.position.x - robot_x, 2) + std::pow(temp_goal_.pose.position.y - robot_y, 2));     
             // Clear the existing plan and add temp_goal
             plan.clear();
             plan.push_back(temp_goal_);
+
 
             if (distance_to_temp_goal_ <= temp_goal_tolerance_ || wall_near)
             {
                 // Set speed to 0.0 when reaching temp_goal
                 ROS_ERROR("Reached temp_goal. Resetting goal and setting speed to 0.0 for 5 seconds.");
 
-                speed_ = 0.0;
 
+                speed_ = 0.0;
             }
+
+
         }
         else
             plan = plan_;
@@ -210,6 +212,9 @@ namespace sideways_inter
                 ROS_ERROR("Failed to get parameter %s/move_base_flex/local_costmap/obstacles_layer/helios_points/topic", node_namespace_.c_str());
             }
         }
+        if (!nh_.getParam("/robot_radius", robot_radius_)){
+            ROS_ERROR("Failed to get parameter %s/local_planner", node_namespace_.c_str());
+        }
         if (!scan_topic_name.empty())
         {
             laser_scan_subscriber_ = nh_.subscribe(scan_topic_name, 1, &SidewaysInter::laserScanCallback, this);
@@ -301,6 +306,10 @@ namespace sideways_inter
             lock.unlock();
            
         }
+        
+
+
+
     }
 
 }

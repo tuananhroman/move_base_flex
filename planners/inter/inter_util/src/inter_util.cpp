@@ -2,31 +2,29 @@
 #include "inter_util.h"
 #include <vector>
 #include <cmath>
+#include <unordered_map>
+#include <string> 
 
 namespace inter_util
 {
     std::string InterUtil::getLocalPlanner(const std::string &keyword)
     {
-        std::string local_planner_name;
+        // Create a map to store keyword to local planner name mappings
+        std::unordered_map<std::string, std::string> plannerMap = {
+            {"teb", "TebLocalPlannerROS"},
+            {"mpc", "MpcLocalPlannerROS"},
+            {"dwa", "DwaLocalPlannerROS"},
+            {"cohan", "HATebLocalPlannerROS"},
+            {"rosnav", "TebLocalPlannerROS"},
+            {"dragon", "DwaLocalPlannerROS"},
+            {"applr", "TrajectoryPlannerROS"},
+            {"lflh", "TrajectoryPlannerROS"},
+            {"trail", "TrajectoryPlannerROS"}
+        };
 
-        if (keyword == "teb")
-        {
-            local_planner_name = "TebLocalPlannerROS";
-        }
-        else if (keyword == "mpc")
-        {
-            local_planner_name = "MpcLocalPlannerROS";
-        }
-        else if (keyword == "dwa")
-        {
-            local_planner_name = "DwaLocalPlannerROS";
-        }
-        else if (keyword == "cohan")
-        {
-            local_planner_name = "HATebLocalPlannerROS";
-        }
-
-        return local_planner_name;
+        // Use the map to find the local planner name
+        auto it = plannerMap.find(keyword);
+        return (it != plannerMap.end()) ? it->second : "";
     }
 
     double InterUtil::getDangerLevel(const std::vector<double>& terms) {
