@@ -74,7 +74,7 @@ namespace sideways_inter
          */
         void initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros, costmap_2d::Costmap2DROS *local_costmap_ros);
 
-
+        void resumeDriving(const ros::TimerEvent&);
     private:
         // mutexes
         boost::mutex plan_mtx_;
@@ -86,10 +86,13 @@ namespace sideways_inter
         // could be used for nh
         std::string name;
         std::string node_namespace_;
+        double robot_radius_;
 
-        ros::Time start_timer_;
+
+        ros::Timer wait_timer;
         ros::NodeHandle nh_;
 
+        
         // default values
         // change in SidewaysInter.cfg to your preference
         double caution_detection_range_ = 10.0;
@@ -99,6 +102,7 @@ namespace sideways_inter
         double temp_goal_tolerance_ = 0.2;
         double fov_ = M_PI;
         double danger_threshold = 0.6;
+        double distance;
 
 
         // variables to control the speed
