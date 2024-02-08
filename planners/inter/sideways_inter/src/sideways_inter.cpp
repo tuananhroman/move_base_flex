@@ -78,8 +78,8 @@ namespace sideways_inter
                 temp_goal_ = start;
 
                 // calculating position for temporary goal
-                temp_goal_.pose.position.x -= 2 * temp_goal_distance_ * cos(theta  + M_PI / 4.0);
-                temp_goal_.pose.position.y -= 2 * temp_goal_distance_ * sin(theta  + M_PI / 4.0);
+                temp_goal_.pose.position.x -= 1.5 * temp_goal_distance_ * cos(theta  + M_PI / 4.0);
+                temp_goal_.pose.position.y -= 1.5 * temp_goal_distance_ * sin(theta  + M_PI / 4.0);
                 temp_goal_.pose.orientation = tf::createQuaternionMsgFromYaw(theta);
                 temp_goal_.header.frame_id = start.header.frame_id;
                 new_goal_set_ = true;
@@ -100,16 +100,21 @@ namespace sideways_inter
                 ROS_ERROR("AVOIDED COLLISION WITH OBSTACLE. CONTINUE NORMAL PLANNING");
                 new_goal_set_ = false;
                 plan = plan_;
-                //return 0;
+                
             }
             // calculate distance to temporary goal
             double distance_to_temp_goal_ = std::sqrt(std::pow(temp_goal_.pose.position.x - robot_x, 2) + std::pow(temp_goal_.pose.position.y - robot_y, 2));     
             // Clear the existing plan and add temp_goal
             plan.clear();
             plan.push_back(temp_goal_);
-            if ((distance_to_temp_goal_ <= temp_goal_tolerance_) || wall_near)
+
+
+            if (distance_to_temp_goal_ <= temp_goal_tolerance_ || wall_near)
             {
-                ROS_ERROR("Reached temp_goal. Setting speed to 0.0 for 5 seconds.");
+                // Set speed to 0.0 when reaching temp_goal
+                ROS_ERROR("Reached temp_goal. Resetting goal and setting speed to 0.0 for 5 seconds.");
+
+
                 speed_ = 0.0;
             }
 
@@ -175,13 +180,14 @@ namespace sideways_inter
 
     void SidewaysInter::resumeDriving(const ros::TimerEvent&)
     {
-        ROS_INFO("Resumed with the previous speed.");
+        ROS_ERROR("Resumed with the previous speed.");
 
-        // Setzen Sie die Geschwindigkeit auf den vorherigen Wert (last_speed_)
+        // set speed to the previous value (last_speed_)
         speed_ = last_speed_;
 
-        // Setzen Sie new_goal_set_ auf false, um den nächsten Durchlauf zu ermöglichen
+        // set variable to false for next loop
         new_goal_set_ = false;
+
     }
 
 
@@ -290,14 +296,15 @@ namespace sideways_inter
 
                 // Check if speed is set to zero, then start the timer
                 if (speed_ == 0.0)
-                {
-                    // Start Timer
-                    wait_timer = nh_.createTimer(ros::Duration(2.5), &SidewaysInter::resumeDriving, this);
+                {               
+                    // Start Timer and configure it as oneshot time (oneshot=true)
+                    wait_timer = nh_.createTimer(ros::Duration(2.5), &SidewaysInter::resumeDriving, this,true);
+                    
                 }
             }
-            // Unlock and sleep
+            // Unlock 
             lock.unlock();
-            rate.sleep();
+           
         }
         
 
