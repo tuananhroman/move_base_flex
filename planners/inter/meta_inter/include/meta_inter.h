@@ -132,6 +132,8 @@ namespace meta_inter
         //void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& msg);
         void setMaxVelocityThread();
         void setTempGoal(const geometry_msgs::PoseStamped &start, double theta, double distance);
+        void setSpeed(bool caution, double minDistance);
+        bool checkStaticObjects(double distance, double theta);
     };
 }
 

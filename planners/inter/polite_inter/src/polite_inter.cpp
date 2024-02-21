@@ -56,7 +56,7 @@ namespace polite_inter
                 // to determine if the scan is a static obstacle
                 if ((2 * std::abs(relative_angle) <= M_PI) && (detectedRanges[i] <= temp_goal_distance_) && !isPed)
                 {
-                    if (detectedRanges[i] <= 2*robot_radius_+0.07)
+                    if (detectedRanges[i] <= 2*robot_radius_+0.075)
                     {
                         // TODO: Get robot size to determine appropiate value (currently hardcoded 0.6 for jackal)
                         ROS_INFO("Detected Range[%zu] that should be a static obstacle for Scan Point: %f and here the Angle %f", i, detectedRanges[i], 2 * std::abs(relative_angle));

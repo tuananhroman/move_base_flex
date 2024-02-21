@@ -36,7 +36,6 @@ namespace meta_inter
         ROS_WARN("%s is our current inter", current_inter_.c_str());
 
         std::vector<double> distances;
-        distances.empty();
 
         for (const auto &point : semanticPoints)
         {
@@ -49,25 +48,7 @@ namespace meta_inter
                 double angle_to_point = atan2(point.x - robot_x, point.y - robot_y);
                 double theta = tf::getYaw(start.pose.orientation);
                 double angle_diff = angles::shortest_angular_distance(theta, angle_to_point);
-
-                for (size_t i = 0; i < detectedRanges.size(); ++i)
-                {
-                    // check if scan could be pedestrian and if it is ignore it
-                    bool isPed = (detectedRanges[i] - 0.2 <= distance) && (distance <= detectedRanges[i] + 0.2);
-                    double relative_angle = angles::shortest_angular_distance(theta, detectedAngles[i]);
-                    // here we check if the scan is:
-                    // behind the robot, not a pedestrian and the temp goal would be in or behind the scanned object
-                    // to determine if the scan is a static obstacle
-                    if ((2 * std::abs(relative_angle) <= M_PI) && (detectedRanges[i] <= temp_goal_distance_) && !isPed)
-                    {
-                        if (detectedRanges[i] <= 2*robot_radius_+0.07)
-                        {
-                            // TODO: Get robot size to determine appropiate value (currently hardcoded 0.6 for jackal)
-                            ROS_INFO("Detected Range[%zu] that should be a static obstacle for Scan Point: %f and here the Angle %f", i, detectedRanges[i], 2 * std::abs(relative_angle));
-                            wall_near = true;
-                        }
-                    }
-                }
+                wall_near = checkStaticObjects(distance, theta);
 
                 // check speed restriction
                 caution |= (distance <= caution_detection_range_);
@@ -83,11 +64,7 @@ namespace meta_inter
                     break;
             }
         }
-        if(current_inter_ != "aggressive"){
-            speed_ = caution ? changed_max_vel_x_param_ : max_vel_x_param_;
-        } else {
-            speed_ = max_vel_x_param_ - (max_vel_x_param_ / (1 + std::pow(minDistance, 2)));
-        }
+        setSpeed(caution, minDistance);
         inter_util::InterUtil::checkDanger(dangerPublisher, distances, 0.6);
         if (new_goal_set_)
         {
@@ -114,6 +91,40 @@ namespace meta_inter
             plan = plan_;
 
         return 0;
+    }
+
+    bool MetaInter::checkStaticObjects(double distance, double theta)
+    {
+        //works for polite and sideways, if there are more options, it needs adjustment
+        double default_padding = (current_inter_ == "polite") ? 0.075 : 0.135;
+        for (size_t i = 0; i < detectedRanges.size(); ++i)
+        {
+            // check if scan could be pedestrian and if it is ignore it
+            bool isPed = (detectedRanges[i] - 0.2 <= distance) && (distance <= detectedRanges[i] + 0.2);
+            double relative_angle = angles::shortest_angular_distance(theta, detectedAngles[i]);
+            // here we check if the scan is:
+            // behind the robot, not a pedestrian and the temp goal would be in or behind the scanned object
+            // to determine if the scan is a static obstacle
+            if ((2 * std::abs(relative_angle) <= M_PI) && (detectedRanges[i] <= temp_goal_distance_) && !isPed)
+            {
+                if (detectedRanges[i] <= 2*robot_radius_+default_padding)
+                {
+                    // TODO: Get robot size to determine appropiate value (currently hardcoded 0.6 for jackal)
+                    ROS_INFO("Detected Range[%zu] that should be a static obstacle for Scan Point: %f and here the Angle %f", i, detectedRanges[i], 2 * std::abs(relative_angle));
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    void MetaInter::setSpeed(bool caution, double minDistance)
+    {
+        if(current_inter_ != "aggressive"){
+            speed_ = caution ? changed_max_vel_x_param_ : max_vel_x_param_;
+        } else {
+            speed_ = max_vel_x_param_ - (max_vel_x_param_ / (1 + std::pow(minDistance, 2)));
+        }
     }
 
     void MetaInter::setTempGoal(const geometry_msgs::PoseStamped &start, double theta, double distance)
