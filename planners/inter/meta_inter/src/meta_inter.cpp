@@ -2,6 +2,7 @@
 #include "../../inter_util/include/inter_util.h"
 
 #include <thread>
+#include <vector>
 #include <std_msgs/Int32.h>
 
 #include <pluginlib/class_list_macros.hpp>
@@ -14,7 +15,6 @@
 #include <dynamic_reconfigure/Reconfigure.h>
 #include <dynamic_reconfigure/Config.h>
 #include <angles/angles.h>
-#include <vector>
 
 PLUGINLIB_EXPORT_CLASS(meta_inter::MetaInter, mbf_costmap_core::CostmapInter)
 
@@ -30,81 +30,64 @@ namespace meta_inter
         double robot_x = start.pose.position.x;
         double robot_y = start.pose.position.y;
         double robot_z = start.pose.position.z;
+        double minDistance = INFINITY;
         bool caution = false;
         bool wall_near = false;
+        ROS_WARN("%s is our current inter", current_inter_.c_str());
 
         std::vector<double> distances;
         distances.empty();
 
-        setInterClient_ = nh_.serviceClient<dynamic_reconfigure::Reconfigure>(node_namespace_ + "/move_base_flex/inters");
-        str_param_.name = "MetaInter";
-        str_param_.value = "aggressive_inter/AggressiveInter";
-        conf_.strs.clear();
-        conf_.strs.push_back(str_param_);
-        reconfig_.request.config = conf_;
-
-        // Call setParametersClient_ to update parameters
-        if (setParametersClient_.call(reconfig_))
-        {
-            ROS_INFO_ONCE("Dynamic reconfigure request successful");
-        }
-        else
-        {
-            ROS_ERROR_ONCE("Failed to call dynamic reconfigure service");
-        }
-
         for (const auto &point : semanticPoints)
         {
             double distance = std::sqrt(std::pow(point.x - robot_x, 2) + std::pow(point.y - robot_y, 2)) + std::pow(point.z - robot_z, 2);
+            minDistance = std::min(minDistance, distance);
             distances.push_back(distance);
-
-            // calculates if ped is behind the robot to determine if he can continue to drive or set temp_goal
-            double angle_to_point = atan2(point.x - robot_x, point.y - robot_y);
-            double theta = tf::getYaw(start.pose.orientation);
-            double angle_diff = angles::shortest_angular_distance(theta, angle_to_point);
-
-            for (size_t i = 0; i < detectedRanges.size(); ++i)
+            if(current_inter_ != "aggressive")
             {
-                // check if scan could be pedestrian and if it is ignore it
-                bool isPed = (detectedRanges[i] - 0.2 <= distance) && (distance <= detectedRanges[i] + 0.2);
-                double relative_angle = angles::shortest_angular_distance(theta, detectedAngles[i]);
-                // here we check if the scan is:
-                // behind the robot, not a pedestrian and the temp goal would be in or behind the scanned object
-                // to determine if the scan is a static obstacle
-                if ((2 * std::abs(relative_angle) <= M_PI) && (detectedRanges[i] <= temp_goal_distance_) && !isPed)
+                // calculates if ped is behind the robot to determine if he can continue to drive or set temp_goal
+                double angle_to_point = atan2(point.x - robot_x, point.y - robot_y);
+                double theta = tf::getYaw(start.pose.orientation);
+                double angle_diff = angles::shortest_angular_distance(theta, angle_to_point);
+
+                for (size_t i = 0; i < detectedRanges.size(); ++i)
                 {
-                    if (detectedRanges[i] <= 2*robot_radius_+0.07)
+                    // check if scan could be pedestrian and if it is ignore it
+                    bool isPed = (detectedRanges[i] - 0.2 <= distance) && (distance <= detectedRanges[i] + 0.2);
+                    double relative_angle = angles::shortest_angular_distance(theta, detectedAngles[i]);
+                    // here we check if the scan is:
+                    // behind the robot, not a pedestrian and the temp goal would be in or behind the scanned object
+                    // to determine if the scan is a static obstacle
+                    if ((2 * std::abs(relative_angle) <= M_PI) && (detectedRanges[i] <= temp_goal_distance_) && !isPed)
                     {
-                        // TODO: Get robot size to determine appropiate value (currently hardcoded 0.6 for jackal)
-                        ROS_INFO("Detected Range[%zu] that should be a static obstacle for Scan Point: %f and here the Angle %f", i, detectedRanges[i], 2 * std::abs(relative_angle));
-                        wall_near = true;
+                        if (detectedRanges[i] <= 2*robot_radius_+0.07)
+                        {
+                            // TODO: Get robot size to determine appropiate value (currently hardcoded 0.6 for jackal)
+                            ROS_INFO("Detected Range[%zu] that should be a static obstacle for Scan Point: %f and here the Angle %f", i, detectedRanges[i], 2 * std::abs(relative_angle));
+                            wall_near = true;
+                        }
                     }
                 }
+
+                // check speed restriction
+                caution |= (distance <= caution_detection_range_);
+
+                // Check if the pedestrian is in range to set temporary goal and move back
+                if ((!new_goal_set_) && (distance <= ped_minimum_distance_) && (2 * std::abs(angle_diff) <= fov_))
+                {
+                    setTempGoal(start, theta, distance);
+                }
+
+                // nothing else to compute
+                if (caution && new_goal_set_)
+                    break;
             }
-
-            // check speed restriction
-            caution |= (distance <= caution_detection_range_);
-
-            // Check if the pedestrian is in range to set temporary goal and move back
-            if ((!new_goal_set_) && (distance <= ped_minimum_distance_) && (2 * std::abs(angle_diff) <= fov_))
-            {
-                ROS_INFO("Pedestrian detected. Distance: %lf", distance);
-                ROS_INFO("Setting new temp_goal");
-                temp_goal_ = start;
-
-                // calculating position for temporary goal
-                temp_goal_.pose.position.x -= temp_goal_distance_ * cos(theta);
-                temp_goal_.pose.position.y -= temp_goal_distance_ * sin(theta);
-                temp_goal_.pose.orientation = tf::createQuaternionMsgFromYaw(tf::getYaw(temp_goal_.pose.orientation));
-                temp_goal_.header.frame_id = start.header.frame_id;
-                new_goal_set_ = true;
-            }
-
-            // nothing else to compute
-            if (caution && new_goal_set_)
-                break;
         }
-        speed_ = caution ? changed_max_vel_x_param_ : max_vel_x_param_;
+        if(current_inter_ != "aggressive"){
+            speed_ = caution ? changed_max_vel_x_param_ : max_vel_x_param_;
+        } else {
+            speed_ = max_vel_x_param_ - (max_vel_x_param_ / (1 + std::pow(minDistance, 2)));
+        }
         inter_util::InterUtil::checkDanger(dangerPublisher, distances, 0.6);
         if (new_goal_set_)
         {
@@ -131,6 +114,28 @@ namespace meta_inter
             plan = plan_;
 
         return 0;
+    }
+
+    void MetaInter::setTempGoal(const geometry_msgs::PoseStamped &start, double theta, double distance)
+    {
+        ROS_INFO("Pedestrian detected. Distance: %lf", distance);
+        ROS_INFO("Setting new temp_goal");
+        temp_goal_ = start;
+
+        if(current_inter_ == "polite")
+        {
+            // calculating position for temporary goal
+            temp_goal_.pose.position.x -= temp_goal_distance_ * cos(theta);
+            temp_goal_.pose.position.y -= temp_goal_distance_ * sin(theta);
+            temp_goal_.pose.orientation = tf::createQuaternionMsgFromYaw(tf::getYaw(temp_goal_.pose.orientation));
+        }
+        if(current_inter_ == "sideways") {
+            temp_goal_.pose.position.x -= 1.5 * temp_goal_distance_ * cos(theta  + M_PI / 4.0);
+            temp_goal_.pose.position.y -= 1.5 * temp_goal_distance_ * sin(theta  + M_PI / 4.0);
+            temp_goal_.pose.orientation = tf::createQuaternionMsgFromYaw(theta);
+        }
+        temp_goal_.header.frame_id = start.header.frame_id;
+        new_goal_set_ = true;
     }
 
     bool MetaInter::setPlan(const std::vector<geometry_msgs::PoseStamped> &plan)
@@ -247,7 +252,9 @@ namespace meta_inter
         temp_goal_tolerance_ = config.temp_goal_tolerance;
         fov_ = config.fov;
         danger_threshold = config.danger_threshold;
+        current_inter_ = config.current_inter;
         changed_max_vel_x_param_ = (cautious_speed_ * max_vel_x_param_);
+
     }
 
     void MetaInter::setMaxVelocityThread()

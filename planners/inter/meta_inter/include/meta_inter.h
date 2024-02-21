@@ -97,6 +97,7 @@ namespace meta_inter
         double temp_goal_tolerance_ = 0.2;
         double danger_threshold = 0.6;
         double fov_ = M_PI;
+        std::string current_inter_ = "aggressive";
 
         // variables to control the speed
         double speed_;
@@ -120,7 +121,6 @@ namespace meta_inter
 
         dynamic_reconfigure::Reconfigure reconfig_;
         dynamic_reconfigure::DoubleParameter double_param_;
-        dynamic_reconfigure::StrParameter str_param_;
         dynamic_reconfigure::Config conf_;
         std::vector<geometry_msgs::Point32> semanticPoints;
         std::vector<double> detectedRanges;
@@ -131,6 +131,7 @@ namespace meta_inter
         void laserScanCallback(const sensor_msgs::LaserScan::ConstPtr& msg);
         //void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& msg);
         void setMaxVelocityThread();
+        void setTempGoal(const geometry_msgs::PoseStamped &start, double theta, double distance);
     };
 }
 
