@@ -1,0 +1,8 @@
+<library path="lib/libmeta_inter">
+    <class name="meta_inter/MetaInter" type="meta_inter::MetaInter"
+        base_class_type="mbf_costmap_core::CostmapInter">
+        <description>
+        Heuristic switch between different inter planners.
+        </description>
+    </class>
+</library>
