@@ -4,6 +4,7 @@
 #include <thread>
 #include <vector>
 #include <std_msgs/Int32.h>
+#include <pedsim_msgs/AgentStates.h>
 
 #include <pluginlib/class_list_macros.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
@@ -37,8 +38,9 @@ namespace meta_inter
 
         std::vector<double> distances;
 
-        for (const auto &point : semanticPoints)
+        for (const auto &simAgentInfo : simAgentInfos)
         {
+            geometry_msgs::Point32 point = simAgentInfo.point;
             double distance = std::sqrt(std::pow(point.x - robot_x, 2) + std::pow(point.y - robot_y, 2)) + std::pow(point.z - robot_z, 2);
             minDistance = std::min(minDistance, distance);
             distances.push_back(distance);
@@ -157,20 +159,11 @@ namespace meta_inter
         return true;
     }
 
-    void MetaInter::semanticCallback(const pedsim_msgs::SemanticData::ConstPtr &message)
+    void MetaInter::semanticCallback(const pedsim_msgs::AgentStates::ConstPtr &message)
     // turns our semantic layer data into points we can use to calculate distance
     {
         boost::unique_lock<boost::mutex> lock(plan_mtx_);
-
-        semanticPoints.clear();
-        for (const auto &point : message->points)
-        {
-            geometry_msgs::Point32 pedestrianPoint;
-            pedestrianPoint.x = point.location.x;
-            pedestrianPoint.y = point.location.y;
-            pedestrianPoint.z = point.location.z;
-            semanticPoints.push_back(pedestrianPoint);
-        }
+        inter_util::InterUtil::processAgentStates(message, simAgentInfos);
     }
 
     void MetaInter::laserScanCallback(const sensor_msgs::LaserScan::ConstPtr &message)
@@ -200,7 +193,7 @@ namespace meta_inter
     {
         this->name = name;
         std::string node_namespace_ = ros::this_node::getNamespace();
-        std::string semantic_layer = "/pedsim_agents/semantic/pedestrian";
+        std::string semantic_layer = "/pedsim_simulator/simulated_agents";
         nh_ = ros::NodeHandle("~");
         subscriber_ = nh_.subscribe(semantic_layer, 1, &MetaInter::semanticCallback, this);
         dangerPublisher = nh_.advertise<std_msgs::String>("Danger", 10);
