@@ -1,6 +1,6 @@
 #include "../include/aggressive_inter.h"
 #include "../../inter_util/include/inter_util.h"
-
+#include <pedsim_msgs/AgentStates.h>
 #include <thread>
 #include <vector>
 
@@ -27,8 +27,9 @@ namespace aggressive_inter
 
         std::vector<double> distances;
         distances.empty();
-        for (const auto &point : semanticPoints)
+        for (const auto &simAgentInfo : simAgentInfos)
         {
+            geometry_msgs::Point32 point = simAgentInfo.point;
             double distance = std::sqrt(std::pow(point.x - robot_x, 2) + std::pow(point.y - robot_y, 2)) + std::pow(point.z - robot_z, 2);
             minDistance = std::min(minDistance, distance);
             distances.push_back(distance);
@@ -60,18 +61,23 @@ namespace aggressive_inter
         return true;
     }
 
-    void AggressiveInter::semanticCallback(const pedsim_msgs::SemanticData::ConstPtr &message)
+    void AggressiveInter::semanticCallback(const pedsim_msgs::AgentStates::ConstPtr &message)
     {
         boost::unique_lock<boost::mutex> lock(plan_mtx_);
         
-        semanticPoints.clear();
-        for (const auto &point : message->points)
+        simAgentInfos.clear();
+        for (const auto &agent_state : message->agent_states)
         {
+            inter_util::SimAgentInfo simAgentInfo;
             geometry_msgs::Point32 pedestrianPoint;
-            pedestrianPoint.x = point.location.x;
-            pedestrianPoint.y = point.location.y;
-            pedestrianPoint.z = point.location.z;
-            semanticPoints.push_back(pedestrianPoint);
+            pedestrianPoint.x = agent_state.pose.position.x;
+            pedestrianPoint.y = agent_state.pose.position.y;
+            pedestrianPoint.z = agent_state.pose.position.z;
+            simAgentInfo.point = pedestrianPoint;
+            simAgentInfo.social_state = agent_state.social_state;
+            simAgentInfo.type = agent_state.type;
+            simAgentInfo.id = agent_state.id;
+            simAgentInfos.push_back(simAgentInfo);
         }
     }
 
@@ -79,7 +85,7 @@ namespace aggressive_inter
     {
         this->name = name;
         std::string node_namespace_ = ros::this_node::getNamespace();
-        std::string semantic_layer = "/pedsim_agents/semantic/pedestrian";
+        std::string semantic_layer = "/pedsim_simulator/simulated_agents";
         nh_ = ros::NodeHandle("~");
         dangerPublisher = nh_.advertise<std_msgs::String>("Danger", 10);  
         subscriber_ = nh_.subscribe(semantic_layer, 1, &AggressiveInter::semanticCallback, this);

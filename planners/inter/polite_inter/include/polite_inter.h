@@ -11,6 +11,7 @@
 #include <sensor_msgs/LaserScan.h>
 #include <sensor_msgs/point_cloud_conversion.h>
 #include <polite_inter/PoliteInterConfig.h>
+#include "../../inter_util/include/inter_util.h"
 
 #include <std_msgs/Float64.h>
 #include <thread>

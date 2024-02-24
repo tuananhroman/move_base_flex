@@ -6,9 +6,18 @@
 #include <string>
 #include <vector>
 #include <std_msgs/String.h>
+#include <geometry_msgs/Point32.h>
 
 namespace inter_util
 {
+    struct SimAgentInfo {
+        geometry_msgs::Point32 point; 
+        std::string social_state;             
+        std::string type;             
+        std::string id; 
+    };
+
+
     class InterUtil
     {
     public:
