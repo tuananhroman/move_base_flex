@@ -4,6 +4,7 @@
 #include <cmath>
 #include <unordered_map>
 #include <string> 
+#include <pedsim_msgs/AgentStates.h>
 
 namespace inter_util
 {
@@ -54,4 +55,21 @@ namespace inter_util
             publishSignal(publisher);
         }
     }
+
+    void InterUtil::processAgentStates(const pedsim_msgs::AgentStates::ConstPtr& message, std::vector<SimAgentInfo>& simAgentInfos) {
+        simAgentInfos.clear();
+        for (const auto& agent_state : message->agent_states) {
+            SimAgentInfo simAgentInfo;
+            geometry_msgs::Point32 pedestrianPoint;
+            pedestrianPoint.x = agent_state.pose.position.x;
+            pedestrianPoint.y = agent_state.pose.position.y;
+            pedestrianPoint.z = agent_state.pose.position.z;
+            simAgentInfo.point = pedestrianPoint;
+            simAgentInfo.social_state = agent_state.social_state;
+            simAgentInfo.type = agent_state.type;
+            simAgentInfo.id = agent_state.id;
+            simAgentInfos.push_back(simAgentInfo);
+        }
+    }
+
 }

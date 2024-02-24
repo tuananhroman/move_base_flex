@@ -64,21 +64,7 @@ namespace aggressive_inter
     void AggressiveInter::semanticCallback(const pedsim_msgs::AgentStates::ConstPtr &message)
     {
         boost::unique_lock<boost::mutex> lock(plan_mtx_);
-        
-        simAgentInfos.clear();
-        for (const auto &agent_state : message->agent_states)
-        {
-            inter_util::SimAgentInfo simAgentInfo;
-            geometry_msgs::Point32 pedestrianPoint;
-            pedestrianPoint.x = agent_state.pose.position.x;
-            pedestrianPoint.y = agent_state.pose.position.y;
-            pedestrianPoint.z = agent_state.pose.position.z;
-            simAgentInfo.point = pedestrianPoint;
-            simAgentInfo.social_state = agent_state.social_state;
-            simAgentInfo.type = agent_state.type;
-            simAgentInfo.id = agent_state.id;
-            simAgentInfos.push_back(simAgentInfo);
-        }
+        inter_util::InterUtil::processAgentStates(message, simAgentInfos);
     }
 
     void AggressiveInter::initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros, costmap_2d::Costmap2DROS *local_costmap_ros)
