@@ -53,7 +53,7 @@ namespace meta_inter
             //padding is used on top of robot size to account for minor calculation errors to avoid static obstacles
             double default_padding = (current_inter_ == "polite") ? 0.075 : 0.135;
             //detects if there are walls in the sideways_range and add padding here too to account for error
-            bool activateSideways = checkStaticObjects(distance, theta, (sideways_range_+default_padding));
+            bool activateSideways = inter_util::InterUtil::checkStaticObjects(distance, theta, (sideways_range_+default_padding), temp_goal_distance_, robot_radius_, detectedRanges, detectedAngles);
 
             selectPlanner(distance, agentType, activateSideways);
             if(current_inter_ != "aggressive")
@@ -62,7 +62,7 @@ namespace meta_inter
                 double angle_to_point = atan2(point.x - robot_x, point.y - robot_y);
                 double angle_diff = angles::shortest_angular_distance(theta, angle_to_point);
 
-                wall_near = checkStaticObjects(distance, theta, default_padding);
+                wall_near = inter_util::InterUtil::checkStaticObjects(distance, theta, default_padding, temp_goal_distance_, robot_radius_, detectedRanges, detectedAngles);
 
                 // check speed restriction
                 caution |= (distance <= caution_detection_range_);
@@ -122,29 +122,6 @@ namespace meta_inter
             return;
         }
 
-    }
-
-    bool MetaInter::checkStaticObjects(double distance, double theta, double padding)
-    {
-        for (size_t i = 0; i < detectedRanges.size(); ++i)
-        {
-            // check if scan could be pedestrian and if it is ignore it
-            bool isPed = (detectedRanges[i] - 0.2 <= distance) && (distance <= detectedRanges[i] + 0.2);
-            double relative_angle = angles::shortest_angular_distance(theta, detectedAngles[i]);
-            // here we check if the scan is:
-            // behind the robot, not a pedestrian and the temp goal would be in or behind the scanned object
-            // to determine if the scan is a static obstacle
-            if ((2 * std::abs(relative_angle) <= M_PI) && (detectedRanges[i] <= temp_goal_distance_) && !isPed)
-            {
-                if (detectedRanges[i] <= 2*robot_radius_+padding)
-                {
-                    // TODO: Get robot size to determine appropiate value (currently hardcoded 0.6 for jackal)
-                    ROS_INFO("Detected Range[%zu] that should be a static obstacle for Scan Point: %f and here the Angle %f", i, detectedRanges[i], 2 * std::abs(relative_angle));
-                    return true;
-                }
-            }
-        }
-        return false;
     }
 
     bool MetaInter::setPlan(const std::vector<geometry_msgs::PoseStamped> &plan)

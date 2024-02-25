@@ -11,6 +11,7 @@
 #include <pedsim_msgs/AgentStates.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <tf/transform_datatypes.h>
+#include <angles/angles.h>
 
 
 namespace inter_util
@@ -111,6 +112,29 @@ namespace inter_util
         }
         temp_goal.header.frame_id = start.header.frame_id;
         return temp_goal;
+    }
+
+    bool InterUtil::checkStaticObjects(double distance, double theta, double padding, double temp_goal_distance, double robot_radius, std::vector<double> detectedRanges, std::vector<double> detectedAngles)
+    {
+        for (size_t i = 0; i < detectedRanges.size(); ++i)
+        {
+            // check if scan could be pedestrian and if it is ignore it
+            bool isPed = (detectedRanges[i] - 0.3 <= distance) && (distance <= detectedRanges[i] + 0.3);
+            double relative_angle = angles::shortest_angular_distance(theta, detectedAngles[i]);
+            // here we check if the scan is:
+            // behind the robot, not a pedestrian and the temp goal would be in or behind the scanned object
+            // to determine if the scan is a static obstacle
+            if ((2 * std::abs(relative_angle) <= M_PI) && (detectedRanges[i] <= temp_goal_distance) && !isPed)
+            {
+                if (detectedRanges[i] <= 2*robot_radius+padding)
+                {
+                    // TODO: Get robot size to determine appropiate value (currently hardcoded 0.6 for jackal)
+                    ROS_INFO("Detected Range[%zu] that should be a static obstacle for Scan Point: %f and here the Angle %f", i, detectedRanges[i], 2 * std::abs(relative_angle));
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
 }

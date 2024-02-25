@@ -136,7 +136,6 @@ namespace meta_inter
         void laserScanCallback(const sensor_msgs::LaserScan::ConstPtr& msg);
         //void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& msg);
         void setMaxVelocityThread();
-        bool checkStaticObjects(double distance, double theta, double padding);
         void selectPlanner(double distance, std::string type, bool activateSideways);
     };
 }
