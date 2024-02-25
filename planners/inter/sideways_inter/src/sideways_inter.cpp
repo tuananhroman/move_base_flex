@@ -48,42 +48,15 @@ namespace sideways_inter
             double theta = tf::getYaw(start.pose.orientation);
             double angle_diff = angles::shortest_angular_distance(theta, angle_to_point);
 
-            for (size_t i = 0; i < detectedRanges.size(); ++i)
-            {
-                // check if scan could be pedestrian and if it is ignore it
-                bool isPed = (detectedRanges[i] - 0.2 <= distance) && (distance <= detectedRanges[i] + 0.2);
-                double relative_angle = angles::shortest_angular_distance(theta, detectedAngles[i]);
-                // here we check if the scan is:
-                // behind the robot, not a pedestrian and the temp goal would be in or behind the scanned object
-                // to determine if the scan is a static obstacle
-                if ((2 * std::abs(relative_angle) <= M_PI) && (detectedRanges[i] <= temp_goal_distance_) && !isPed)
-                {
-                    // due to weird positiong with sideways behaviour the distance
-                    // to detect walls is increased
-                    if (detectedRanges[i] <= 2*robot_radius_+0.135)
-                    {
-                        // TODO: Get robot size to determine appropiate value (currently hardcoded 0.6 for jackal)
-                        ROS_INFO("Detected Range[%zu] that should be a static obstacle for Scan Point: %f and here the Angle %f", i, detectedRanges[i], 2 * std::abs(relative_angle));
-                        wall_near = true;
-                    }
-                }
-            }
+            wall_near = inter_util::InterUtil::checkStaticObjects(distance, theta, default_padding, temp_goal_distance_, robot_radius_, detectedRanges, detectedAngles);
             // check speed restriction
             caution |= (distance <= caution_detection_range_);
 
             // Check if the pedestrian is in range to set temporary goal and move aside
             if ((!new_goal_set_) && (distance <= ped_minimum_distance_) && (2 * std::abs(angle_diff) <= fov_))
             {
-                ROS_INFO("Pedestrian detected. Distance: %lf", distance);
-                ROS_INFO("Setting new temp_goal");
-                temp_goal_ = start;
-
-                // calculating position for temporary goal
-                temp_goal_.pose.position.x -= 1.5 * temp_goal_distance_ * cos(theta  + M_PI / 4.0);
-                temp_goal_.pose.position.y -= 1.5 * temp_goal_distance_ * sin(theta  + M_PI / 4.0);
-                temp_goal_.pose.orientation = tf::createQuaternionMsgFromYaw(theta);
-                temp_goal_.header.frame_id = start.header.frame_id;
-                new_goal_set_ = true;
+                    temp_goal_ = inter_util::InterUtil::setTempGoal(start, theta, distance, temp_goal_distance_, "sideways");
+                    new_goal_set_ = true;
             }
 
             // nothing else to compute
@@ -91,9 +64,8 @@ namespace sideways_inter
                 break;
         }
 
-        speed_ = caution ? changed_max_vel_x_param_ : max_vel_x_param_;
+        speed_ = inter_util::InterUtil::setSpeed(caution, minDistance, changed_max_vel_x_param_, max_vel_x_param_, "sideways");
         inter_util::InterUtil::checkDanger(dangerPublisher, distances, 0.6);
-
         if (new_goal_set_)
         {
             if (wall_near)
