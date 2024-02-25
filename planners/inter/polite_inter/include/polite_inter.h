@@ -11,9 +11,11 @@
 #include <sensor_msgs/LaserScan.h>
 #include <sensor_msgs/point_cloud_conversion.h>
 #include <polite_inter/PoliteInterConfig.h>
+#include "../../inter_util/include/inter_util.h"
 
 #include <std_msgs/Float64.h>
 #include <thread>
+#include <pedsim_msgs/AgentStates.h>
 
 namespace polite_inter
 {
@@ -120,12 +122,12 @@ namespace polite_inter
         dynamic_reconfigure::Reconfigure reconfig_;
         dynamic_reconfigure::DoubleParameter double_param_;
         dynamic_reconfigure::Config conf_;
-        std::vector<geometry_msgs::Point32> semanticPoints;
+        std::vector<inter_util::SimAgentInfo> simAgentInfos;
         std::vector<double> detectedRanges;
         std::vector<double> detectedAngles;
 
         void reconfigure(polite_inter::PoliteInterConfig &config, uint32_t level);
-        void semanticCallback(const pedsim_msgs::SemanticData::ConstPtr& message);
+        void semanticCallback(const pedsim_msgs::AgentStates::ConstPtr& message);
         void laserScanCallback(const sensor_msgs::LaserScan::ConstPtr& msg);
         //void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& msg);
         void setMaxVelocityThread();

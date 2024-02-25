@@ -52,4 +52,11 @@
   <build_depend>mbf_costmap_core</build_depend>
   <build_export_depend>mbf_costmap_core</build_export_depend>
   <exec_depend>mbf_costmap_core</exec_depend>
+  <build_depend>pedsim_msgs</build_depend>
+  <build_export_depend>pedsim_msgs</build_export_depend>
+  <exec_depend>pedsim_msgs</exec_depend>
+<build_depend>roscpp</build_depend>
+<build_export_depend>roscpp</build_export_depend>
+<exec_depend>roscpp</exec_depend>
+
 </package>

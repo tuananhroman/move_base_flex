@@ -6,6 +6,8 @@
 #include <boost/thread/mutex.hpp>
 #include <dynamic_reconfigure/server.h>
 #include <aggressive_inter/AggressiveInterConfig.h>
+#include "../../inter_util/include/inter_util.h"
+#include <pedsim_msgs/AgentStates.h>
 
 #include <thread>
 
@@ -101,14 +103,14 @@ namespace aggressive_inter
         dynamic_reconfigure::Reconfigure reconfig_;
         dynamic_reconfigure::DoubleParameter double_param_;
         dynamic_reconfigure::Config conf_;
-        std::vector<geometry_msgs::Point32> semanticPoints;
+        std::vector<inter_util::SimAgentInfo> simAgentInfos;
 
         /**
          * @brief Sets new maximum velocity in x direction for the robot
          * @param new_max_vel_x new max velocity in x direction, has to be greater than penality_epsilon (defined in teb_local_planner_params)
         */
         void reconfigure(aggressive_inter::AggressiveInterConfig &config, uint32_t level);
-        void semanticCallback(const pedsim_msgs::SemanticData::ConstPtr& message);
+        void semanticCallback(const pedsim_msgs::AgentStates::ConstPtr& message);
         void setMaxVelocityThread();
     };
 }
