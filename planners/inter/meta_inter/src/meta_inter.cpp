@@ -21,6 +21,8 @@ PLUGINLIB_EXPORT_CLASS(meta_inter::MetaInter, mbf_costmap_core::CostmapInter)
 
 namespace meta_inter
 {
+    // this current setup for the Meta-Planner only works for
+    // the Inter-Planners: Sideways, Polite and Agressive
 
     uint32_t MetaInter::makePlan(const geometry_msgs::PoseStamped &start, const geometry_msgs::PoseStamped &goal,
                                    std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
@@ -37,20 +39,30 @@ namespace meta_inter
         ROS_WARN("%s is our current inter", current_inter_.c_str());
 
         std::vector<double> distances;
+        current_inter_ = "aggressive";
 
         for (const auto &simAgentInfo : simAgentInfos)
         {
             geometry_msgs::Point32 point = simAgentInfo.point;
+            std::string agentType = simAgentInfo.type.c_str();
             double distance = std::sqrt(std::pow(point.x - robot_x, 2) + std::pow(point.y - robot_y, 2)) + std::pow(point.z - robot_z, 2);
             minDistance = std::min(minDistance, distance);
             distances.push_back(distance);
+            double theta = tf::getYaw(start.pose.orientation);
+            //works for polite and sideways, if there are more options, it needs adjustment
+            //padding is used on top of robot size to account for minor calculation errors to avoid static obstacles
+            double default_padding = (current_inter_ == "polite") ? 0.075 : 0.135;
+            //detects if there are walls in the sideways_range and add padding here too to account for error
+            bool activateSideways = checkStaticObjects(distance, theta, (sideways_range_+default_padding));
+
+            selectPlanner(distance, agentType, activateSideways);
             if(current_inter_ != "aggressive")
             {
                 // calculates if ped is behind the robot to determine if he can continue to drive or set temp_goal
                 double angle_to_point = atan2(point.x - robot_x, point.y - robot_y);
-                double theta = tf::getYaw(start.pose.orientation);
                 double angle_diff = angles::shortest_angular_distance(theta, angle_to_point);
-                wall_near = checkStaticObjects(distance, theta);
+
+                wall_near = checkStaticObjects(distance, theta, default_padding);
 
                 // check speed restriction
                 caution |= (distance <= caution_detection_range_);
@@ -91,14 +103,28 @@ namespace meta_inter
         }
         else
             plan = plan_;
-
         return 0;
     }
 
-    bool MetaInter::checkStaticObjects(double distance, double theta)
+    void MetaInter::selectPlanner(double distance, std::string type, bool activateSideways) 
     {
-        //works for polite and sideways, if there are more options, it needs adjustment
-        double default_padding = (current_inter_ == "polite") ? 0.075 : 0.135;
+        //sorted by priority
+        if(current_inter_ == "polite") {
+            return;
+        }
+        if(distance <= polite_range_ && type == "human/elder") {
+            current_inter_ = "polite";
+            return;
+        }
+        if(activateSideways) {
+            current_inter_ = "sideways";
+            return;
+        }
+
+    }
+
+    bool MetaInter::checkStaticObjects(double distance, double theta, double padding)
+    {
         for (size_t i = 0; i < detectedRanges.size(); ++i)
         {
             // check if scan could be pedestrian and if it is ignore it
@@ -109,7 +135,7 @@ namespace meta_inter
             // to determine if the scan is a static obstacle
             if ((2 * std::abs(relative_angle) <= M_PI) && (detectedRanges[i] <= temp_goal_distance_) && !isPed)
             {
-                if (detectedRanges[i] <= 2*robot_radius_+default_padding)
+                if (detectedRanges[i] <= 2*robot_radius_+padding)
                 {
                     // TODO: Get robot size to determine appropiate value (currently hardcoded 0.6 for jackal)
                     ROS_INFO("Detected Range[%zu] that should be a static obstacle for Scan Point: %f and here the Angle %f", i, detectedRanges[i], 2 * std::abs(relative_angle));
@@ -249,14 +275,16 @@ namespace meta_inter
     {
         boost::unique_lock<boost::mutex> lock(plan_mtx_);
         // updating values from config
-        ped_minimum_distance_ = config.ped_minimum_distance;
-        temp_goal_distance_ = config.temp_goal_distance;
         caution_detection_range_ = config.caution_detection_range;
         cautious_speed_ = config.cautious_speed;
+        ped_minimum_distance_ = config.ped_minimum_distance;
+        temp_goal_distance_ = config.temp_goal_distance;
         temp_goal_tolerance_ = config.temp_goal_tolerance;
         fov_ = config.fov;
-        danger_threshold = config.danger_threshold;
+        danger_threshold_ = config.danger_threshold;
         current_inter_ = config.current_inter;
+        polite_range_ = config.polite_range;
+        sideways_range_ = config.sideways_range;
         changed_max_vel_x_param_ = (cautious_speed_ * max_vel_x_param_);
 
     }

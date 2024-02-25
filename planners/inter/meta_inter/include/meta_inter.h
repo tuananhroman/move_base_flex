@@ -96,9 +96,13 @@ namespace meta_inter
         double ped_minimum_distance_ = 2.0;
         double temp_goal_distance_ = 2.0;
         double temp_goal_tolerance_ = 0.2;
-        double danger_threshold = 0.6;
         double fov_ = M_PI;
+        double danger_threshold_ = 0.6;
         std::string current_inter_ = "aggressive";
+        double polite_range_ = 5.0;
+        double sideways_range_ = 8.0;
+
+        //replace this with the actual agent type string if changed
 
         // variables to control the speed
         double speed_;
@@ -134,7 +138,8 @@ namespace meta_inter
         void setMaxVelocityThread();
         void setTempGoal(const geometry_msgs::PoseStamped &start, double theta, double distance);
         void setSpeed(bool caution, double minDistance);
-        bool checkStaticObjects(double distance, double theta);
+        bool checkStaticObjects(double distance, double theta, double padding);
+        void selectPlanner(double distance, std::string type, bool activateSideways);
     };
 }
 
