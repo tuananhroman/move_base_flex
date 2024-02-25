@@ -47,7 +47,7 @@ namespace aggressive_inter
         if (minDistance <= slowdown_distance)
         {
             //speed converges to max_vel_x_param_ at around 5 -> adapt function if necessary
-            temp_speed = inter_util::InterUtil::setSpeed(caution, minDistance, changed_max_vel_x_param_, max_vel_x_param_, "aggressive");
+            temp_speed = inter_util::InterUtil::setSpeed(false, minDistance, 0, max_vel_x_param_, "aggressive");
         }
 
         speed_ = temp_speed;

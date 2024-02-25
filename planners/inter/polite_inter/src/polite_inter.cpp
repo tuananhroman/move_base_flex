@@ -45,6 +45,7 @@ namespace polite_inter
             // calculates if ped is behind the robot to determine if he can continue to drive or set temp_goal
             double angle_to_point = atan2(point.x - robot_x, point.y - robot_y);
             double theta = tf::getYaw(start.pose.orientation);
+            double default_padding = 0.075;
             double angle_diff = angles::shortest_angular_distance(theta, angle_to_point);
             wall_near = inter_util::InterUtil::checkStaticObjects(distance, theta, default_padding, temp_goal_distance_, robot_radius_, detectedRanges, detectedAngles);
 
@@ -62,7 +63,7 @@ namespace polite_inter
             if (caution && new_goal_set_)
                 break;
         }
-        speed_ = inter_util::InterUtil::setSpeed(caution, minDistance, changed_max_vel_x_param_, max_vel_x_param_, "polite");
+        speed_ = inter_util::InterUtil::setSpeed(caution, 0, changed_max_vel_x_param_, max_vel_x_param_, "polite");
         inter_util::InterUtil::checkDanger(dangerPublisher, distances, 0.6);
         if (new_goal_set_)
         {
