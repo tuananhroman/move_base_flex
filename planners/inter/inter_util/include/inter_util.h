@@ -7,6 +7,8 @@
 #include <vector>
 #include <std_msgs/String.h>
 #include <geometry_msgs/Point32.h>
+#include <geometry_msgs/PoseStamped.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <pedsim_msgs/AgentStates.h>
 
 namespace inter_util
@@ -27,7 +29,8 @@ namespace inter_util
         static void publishSignal(ros::Publisher& publisher);
         static void checkDanger(ros::Publisher& publisher, const std::vector<double>& terms, double threshold);
         static void processAgentStates(const pedsim_msgs::AgentStates::ConstPtr& message, std::vector<SimAgentInfo>& simAgentInfos);
-
+        static bool setSpeed(bool caution, double minDistance, double changed_max_vel_x_param_, double max_vel_x_param_, std::string planner);
+        static geometry_msgs::PoseStamped setTempGoal(const geometry_msgs::PoseStamped &start, double theta, double distance, double temp_goal_distance, std::string planner);
     };
 }
 

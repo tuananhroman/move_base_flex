@@ -70,7 +70,8 @@ namespace meta_inter
                 // Check if the pedestrian is in range to set temporary goal and move back
                 if ((!new_goal_set_) && (distance <= ped_minimum_distance_) && (2 * std::abs(angle_diff) <= fov_))
                 {
-                    setTempGoal(start, theta, distance);
+                    temp_goal_ = inter_util::InterUtil::setTempGoal(start, theta, distance, temp_goal_distance_, current_inter_);
+                    new_goal_set_ = true;
                 }
 
                 // nothing else to compute
@@ -78,7 +79,7 @@ namespace meta_inter
                     break;
             }
         }
-        setSpeed(caution, minDistance);
+        speed_ = inter_util::InterUtil::setSpeed(caution, minDistance, changed_max_vel_x_param_, max_vel_x_param_, current_inter_);
         inter_util::InterUtil::checkDanger(dangerPublisher, distances, 0.6);
         if (new_goal_set_)
         {
@@ -144,37 +145,6 @@ namespace meta_inter
             }
         }
         return false;
-    }
-
-    void MetaInter::setSpeed(bool caution, double minDistance)
-    {
-        if(current_inter_ != "aggressive"){
-            speed_ = caution ? changed_max_vel_x_param_ : max_vel_x_param_;
-        } else {
-            speed_ = max_vel_x_param_ - (max_vel_x_param_ / (1 + std::pow(minDistance, 2)));
-        }
-    }
-
-    void MetaInter::setTempGoal(const geometry_msgs::PoseStamped &start, double theta, double distance)
-    {
-        ROS_INFO("Pedestrian detected. Distance: %lf", distance);
-        ROS_INFO("Setting new temp_goal");
-        temp_goal_ = start;
-
-        if(current_inter_ == "polite")
-        {
-            // calculating position for temporary goal
-            temp_goal_.pose.position.x -= temp_goal_distance_ * cos(theta);
-            temp_goal_.pose.position.y -= temp_goal_distance_ * sin(theta);
-            temp_goal_.pose.orientation = tf::createQuaternionMsgFromYaw(tf::getYaw(temp_goal_.pose.orientation));
-        }
-        if(current_inter_ == "sideways") {
-            temp_goal_.pose.position.x -= 1.5 * temp_goal_distance_ * cos(theta  + M_PI / 4.0);
-            temp_goal_.pose.position.y -= 1.5 * temp_goal_distance_ * sin(theta  + M_PI / 4.0);
-            temp_goal_.pose.orientation = tf::createQuaternionMsgFromYaw(theta);
-        }
-        temp_goal_.header.frame_id = start.header.frame_id;
-        new_goal_set_ = true;
     }
 
     bool MetaInter::setPlan(const std::vector<geometry_msgs::PoseStamped> &plan)
