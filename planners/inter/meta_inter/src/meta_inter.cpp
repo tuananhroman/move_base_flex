@@ -5,6 +5,9 @@
 #include <vector>
 #include <std_msgs/Int32.h>
 #include <pedsim_msgs/AgentStates.h>
+#include <nav_msgs/Path.h>
+#include <visualization_msgs/Marker.h>
+#include <geometry_msgs/PointStamped.h>
 
 #include <pluginlib/class_list_macros.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
@@ -16,6 +19,12 @@
 #include <dynamic_reconfigure/Reconfigure.h>
 #include <dynamic_reconfigure/Config.h>
 #include <angles/angles.h>
+#include <visualization_msgs/Marker.h> // Added for different colors of intermediate Planners
+
+
+
+
+
 
 PLUGINLIB_EXPORT_CLASS(meta_inter::MetaInter, mbf_costmap_core::CostmapInter)
 
@@ -40,6 +49,18 @@ namespace meta_inter
 
         std::vector<double> distances;
         current_inter_ = "aggressive";
+
+
+
+        // Marker for global plan
+        visualization_msgs::Marker global_plan_marker;
+        global_plan_marker.header.frame_id = "map"; 
+        global_plan_marker.header.stamp = ros::Time::now();
+        global_plan_marker.ns = "global_plan";
+        global_plan_marker.id = 0;
+        global_plan_marker.type = visualization_msgs::Marker::LINE_STRIP;
+        global_plan_marker.action = visualization_msgs::Marker::ADD;
+        global_plan_marker.scale.x = 0.1; 
 
         for (const auto &simAgentInfo : simAgentInfos)
         {
@@ -104,8 +125,12 @@ namespace meta_inter
         }
         else
             plan = plan_;
+
+
         return 0;
     }
+
+
 
     void MetaInter::selectPlanner(double distance, std::string type, bool activateSideways) 
     {
@@ -216,6 +241,12 @@ namespace meta_inter
 
         // needs to be declared here because cautious_speed gets declared with reconfigure
         changed_max_vel_x_param_ = (cautious_speed_ * max_vel_x_param_);
+
+        // Subscribe to the global plan topic
+        global_plan_sub_ = nh_.subscribe("/jackal/move_base_flex/TebLocalPlannerROS/global_plan", 1, &MetaInter::globalPlanCallback, this);
+
+        // Publisher for modified global plan with color changes
+        global_plan_pub_ = nh_.advertise<visualization_msgs::Marker>("global_plan_color", 1);
     }
 
     void MetaInter::reconfigure(meta_inter::MetaInterConfig &config, uint32_t level)
@@ -273,5 +304,65 @@ namespace meta_inter
             rate.sleep();
         }
     }
+
+
+    void MetaInter::globalPlanCallback(const nav_msgs::Path::ConstPtr& msg)
+    {
+        // Modify the global plan and change the color based on intermediate planner
+        visualization_msgs::Marker modified_plan;
+        modified_plan.header = msg->header;
+        modified_plan.ns = "global_plan";
+        modified_plan.id = 0;
+        modified_plan.type = visualization_msgs::Marker::LINE_STRIP;
+        modified_plan.action = visualization_msgs::Marker::ADD;
+        modified_plan.pose.orientation.w = 1.0;
+        modified_plan.scale.x = 0.01; // Adjust thickness as needed
+
+        // Set color based on intermediate planner
+        if (current_inter_ == "aggressive")
+        {
+            modified_plan.color.r = 1.0;
+            modified_plan.color.g = 0.0;
+            modified_plan.color.b = 0.0;
+            modified_plan.color.a = 1.0; // Fully opaque red
+        }
+        else if (current_inter_ == "sideways")
+        {
+            modified_plan.color.r = 0.0;
+            modified_plan.color.g = 1.0;
+            modified_plan.color.b = 0.0;
+            modified_plan.color.a = 1.0; // Fully opaque green
+        }
+        else if (current_inter_ == "polite")
+        {
+            modified_plan.color.r = 0.0;
+            modified_plan.color.g = 0.0;
+            modified_plan.color.b = 1.0;
+            modified_plan.color.a = 1.0; // Fully opaque blue
+        }
+        else
+        {
+            ROS_WARN("Unknown intermediate planner: %s", current_inter_.c_str());
+            // Use default color if intermediate planner is unknown
+            modified_plan.color.r = 1.0;
+            modified_plan.color.g = 1.0;
+            modified_plan.color.b = 1.0;
+            modified_plan.color.a = 1.0; // Fully opaque white
+        }
+
+        // Convert PoseStamped messages to Point messages
+        for (const auto& pose_stamped : msg->poses)
+        {
+            geometry_msgs::Point point;
+            point.x = pose_stamped.pose.position.x;
+            point.y = pose_stamped.pose.position.y;
+            point.z = pose_stamped.pose.position.z;
+            modified_plan.points.push_back(point);
+        }
+
+        // Publish the modified global plan
+        global_plan_pub_.publish(modified_plan);
+    }
+
 
 }

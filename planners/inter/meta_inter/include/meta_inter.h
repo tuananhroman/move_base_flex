@@ -15,6 +15,7 @@
 #include "../../inter_util/include/inter_util.h"
 #include <std_msgs/Float64.h>
 #include <thread>
+#include <nav_msgs/Path.h>
 
 namespace meta_inter
 {
@@ -112,8 +113,10 @@ namespace meta_inter
         ros::Subscriber subscriber_;
         ros::Subscriber laser_scan_subscriber_;
         ros::Subscriber helios_points_subscriber_;
+        ros::Subscriber  global_plan_sub_;
 
-        ros::Publisher dangerPublisher;  
+        ros::Publisher dangerPublisher;
+        ros::Publisher global_plan_pub_;  
         
         ros::ServiceClient setParametersClient_;
         ros::ServiceClient setInterClient_;
@@ -134,6 +137,7 @@ namespace meta_inter
         void reconfigure(meta_inter::MetaInterConfig &config, uint32_t level);
         void semanticCallback(const pedsim_msgs::AgentStates::ConstPtr& message);
         void laserScanCallback(const sensor_msgs::LaserScan::ConstPtr& msg);
+        void globalPlanCallback(const nav_msgs::Path::ConstPtr& msg);
         //void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& msg);
         void setMaxVelocityThread();
         void selectPlanner(double distance, std::string type, bool activateSideways);
