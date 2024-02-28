@@ -16,6 +16,9 @@
 #include <std_msgs/Float64.h>
 #include <thread>
 #include <nav_msgs/Path.h>
+#include <visualization_msgs/Marker.h>
+#include <geometry_msgs/PoseStamped.h>
+#include <nav_msgs/Odometry.h>
 
 namespace meta_inter
 {
@@ -82,6 +85,8 @@ namespace meta_inter
 
         // storage for setPlan
         std::vector<geometry_msgs::PoseStamped> plan_;
+        // storage for the actual path of the robot 
+        std::vector<geometry_msgs::PoseStamped> robot_positions;
 
         // could be used for nh
         std::string name;
@@ -114,15 +119,21 @@ namespace meta_inter
         ros::Subscriber laser_scan_subscriber_;
         ros::Subscriber helios_points_subscriber_;
         ros::Subscriber  global_plan_sub_;
+        ros::Subscriber odom_subscriber;
 
         ros::Publisher dangerPublisher;
-        ros::Publisher global_plan_pub_;  
+        ros::Publisher global_plan_pub_;
+        ros::Publisher path_publisher;
+        ros::Publisher marker_publisher_; 
         
         ros::ServiceClient setParametersClient_;
         ros::ServiceClient setInterClient_;
 
         geometry_msgs::PoseStamped temp_goal_;
         bool new_goal_set_ = false;
+        bool previous_robot_position_initialized_;
+        
+   
         
         double max_vel_x_param_;
         double changed_max_vel_x_param_;
@@ -133,14 +144,23 @@ namespace meta_inter
         std::vector<inter_util::SimAgentInfo> simAgentInfos;
         std::vector<double> detectedRanges;
         std::vector<double> detectedAngles;
+     
+
+        //Global Plan vizualisation
+        visualization_msgs::Marker global_plan_;
 
         void reconfigure(meta_inter::MetaInterConfig &config, uint32_t level);
         void semanticCallback(const pedsim_msgs::AgentStates::ConstPtr& message);
         void laserScanCallback(const sensor_msgs::LaserScan::ConstPtr& msg);
         void globalPlanCallback(const nav_msgs::Path::ConstPtr& msg);
+        void publishTraveledPath(const std::vector<geometry_msgs::PoseStamped>& traveled_path);
         //void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& msg);
         void setMaxVelocityThread();
         void selectPlanner(double distance, std::string type, bool activateSideways);
+        void odomCallback(const nav_msgs::Odometry::ConstPtr& msg);
+        void visualizeRobotPath();
+        void draw_robot_path();
+       
     };
 }
 

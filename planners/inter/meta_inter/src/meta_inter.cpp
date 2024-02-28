@@ -36,6 +36,12 @@ namespace meta_inter
     uint32_t MetaInter::makePlan(const geometry_msgs::PoseStamped &start, const geometry_msgs::PoseStamped &goal,
                                    std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
     {
+        // Roboterposition erhalten
+        geometry_msgs::PoseStamped robot_pose = start;
+
+        // Roboterposition zum globalen Vektor hinzufügen
+        robot_positions.push_back(robot_pose);
+
         boost::unique_lock<boost::mutex> plan_lock(plan_mtx_);
         boost::unique_lock<boost::mutex> speed_lock(speed_mtx_);
 
@@ -247,6 +253,10 @@ namespace meta_inter
 
         // Publisher for modified global plan with color changes
         global_plan_pub_ = nh_.advertise<visualization_msgs::Marker>("global_plan_color", 1);
+
+        marker_publisher_ = nh_.advertise<visualization_msgs::Marker>("robot_path_marker", 1);
+
+        
     }
 
     void MetaInter::reconfigure(meta_inter::MetaInterConfig &config, uint32_t level)
@@ -362,6 +372,36 @@ namespace meta_inter
 
         // Publish the modified global plan
         global_plan_pub_.publish(modified_plan);
+    }
+
+    void MetaInter::draw_robot_path()
+    {
+        visualization_msgs::Marker marker;
+        marker.header.frame_id = "map"; // Rahmen des Markers einstellen 
+        marker.header.stamp = ros::Time::now();
+        marker.ns = "robot_path";
+        marker.action = visualization_msgs::Marker::ADD;
+        marker.type = visualization_msgs::Marker::LINE_STRIP;
+        marker.scale.x = 0.1; // Breite des Pfadmarkers einstellen
+
+        // Farbe des Pfadmarkers einstellen
+        marker.color.a = 1.0; // Alpha-Wert (Transparenz) einstellen
+        marker.color.r = 1.0; // Farbe des Markers (rot)
+        marker.color.g = 0.0; // Farbe des Markers (grün)
+        marker.color.b = 0.0; // Farbe des Markers (blau)
+
+        // Pfadpunkte aus den gespeicherten Roboterpositionen hinzufügen
+        for (const auto &pose : robot_positions)
+        {
+            geometry_msgs::Point point;
+            point.x = pose.pose.position.x;
+            point.y = pose.pose.position.y;
+            point.z = pose.pose.position.z;
+            marker.points.push_back(point);
+        }
+
+        // Marker veröffentlichen
+        marker_publisher_.publish(marker);
     }
 
 
