@@ -240,12 +240,12 @@ namespace meta_inter
 
         // Subscribe to the global plan topic
         global_plan_sub_ = nh_.subscribe("/jackal/move_base_flex/TebLocalPlannerROS/global_plan", 1, &MetaInter::globalPlanCallback, this);
-        odom_sub = nh_.subscribe("/jackal/odom", 10, &MetaInter::odomCallback,this);
+        odom_sub = nh_.subscribe("/jackal/odom", 1, &MetaInter::odomCallback,this);
 
         // Publisher for modified global plan with color changes
         global_plan_pub_ = nh_.advertise<visualization_msgs::Marker>("global_plan_color", 1);
 
-        path_pub_ = nh_.advertise<visualization_msgs::Marker>("robot_path_color", 10);
+        path_pub_ = nh_.advertise<visualization_msgs::Marker>("robot_path_color", 1);
 
         
     }
@@ -371,7 +371,13 @@ namespace meta_inter
     void MetaInter::odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
     {
 
+        double linear_velocity = std::sqrt(std::pow(msg->twist.twist.linear.x, 2) +
+                                       std::pow(msg->twist.twist.linear.y, 2) +
+                                       std::pow(msg->twist.twist.linear.z, 2));
 
+
+        if (linear_velocity > 0.1)
+            {                                   
          // Initialisierung der Marker-Nachricht für den Pfad
         path_marker_.header.frame_id = "map";
         path_marker_.ns = "robot_path";
@@ -387,6 +393,7 @@ namespace meta_inter
         geometry_msgs::PointStamped robot_position;
         robot_position.header = msg->header;
         robot_position.point = msg->pose.pose.position;
+
 
         // Hinzufügen der Position des Roboters zum Pfad
         path_marker_.points.push_back(robot_position.point);
@@ -415,6 +422,7 @@ namespace meta_inter
 
         // Veröffentlichen der aktualisierten Pfadnachricht
         path_pub_.publish(path_marker_);
+    }
     }
 
 
