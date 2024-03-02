@@ -245,7 +245,7 @@ namespace meta_inter
         // Publisher for modified global plan with color changes
         global_plan_pub_ = nh_.advertise<visualization_msgs::Marker>("global_plan_color", 1);
 
-        path_pub_ = nh_.advertise<visualization_msgs::Marker>("robot_path", 10);
+        path_pub_ = nh_.advertise<visualization_msgs::Marker>("robot_path_color", 10);
 
         
     }
@@ -378,7 +378,7 @@ namespace meta_inter
         path_marker_.id = 0;
         path_marker_.type = visualization_msgs::Marker::LINE_STRIP;
         path_marker_.action = visualization_msgs::Marker::ADD;
-        path_marker_.pose.orientation.w = 1.0;
+        //path_marker_.pose.orientation.w = 1.0;
         path_marker_.scale.x = 0.05; // Dicke der Linie
  
         
@@ -391,40 +391,27 @@ namespace meta_inter
         // Hinzufügen der Position des Roboters zum Pfad
         path_marker_.points.push_back(robot_position.point);
 
+        // Farbzuweisung basierend auf dem aktuellen Intermediate Planner
+        std_msgs::ColorRGBA color;
+        if (current_inter_ == "aggressive") {
+            color.r = 1.0;
+            color.g = 0.0;
+            color.b = 0.0;
+        } else if (current_inter_ == "sideways") {
+            color.r = 0.0;
+            color.g = 1.0;
+            color.b = 0.0;
+        } else if (current_inter_ == "polite") {
+            color.r = 0.0;
+            color.g = 0.0;
+            color.b = 1.0;
+        }
+        color.a = 1.0; // Transparenz der Farbe
+
+        // Hinzufügen der Farbe zum Farbvektor für den aktuellen Punkt
+        path_marker_.colors.push_back(color);
 
 
-
-        // Set color based on intermediate planner
-        if (current_inter_ == "aggressive")
-        {
-            path_marker_.color.r = 1.0;
-            path_marker_.color.g = 0.0;
-            path_marker_.color.b = 0.0;
-            path_marker_.color.a = 1.0; // Fully opaque red
-        }
-        else if (current_inter_ == "sideways")
-        {
-            path_marker_.color.r = 0.0;
-            path_marker_.color.g = 1.0;
-            path_marker_.color.b = 0.0;
-            path_marker_.color.a = 1.0; // Fully opaque green
-        }
-        else if (current_inter_ == "polite")
-        {
-            path_marker_.color.r = 0.0;
-            path_marker_.color.g = 0.0;
-            path_marker_.color.b = 1.0;
-            path_marker_.color.a = 1.0; // Fully opaque blue
-        }
-        else
-        {
-            ROS_WARN("Unknown intermediate planner: %s", current_inter_.c_str());
-            // Use default color if intermediate planner is unknown
-            path_marker_.color.r = 1.0;
-            path_marker_.color.g = 1.0;
-            path_marker_.color.b = 1.0;
-            path_marker_.color.a = 1.0; // Fully opaque white
-        }
 
         // Veröffentlichen der aktualisierten Pfadnachricht
         path_pub_.publish(path_marker_);
