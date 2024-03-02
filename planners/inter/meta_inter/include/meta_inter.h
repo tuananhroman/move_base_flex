@@ -119,11 +119,12 @@ namespace meta_inter
         ros::Subscriber laser_scan_subscriber_;
         ros::Subscriber helios_points_subscriber_;
         ros::Subscriber  global_plan_sub_;
-        ros::Subscriber odom_subscriber;
+        ros::Subscriber odom_sub;
 
         ros::Publisher dangerPublisher;
         ros::Publisher global_plan_pub_;
         ros::Publisher path_publisher;
+        ros::Publisher path_pub_;
         ros::Publisher marker_publisher_; 
         
         ros::ServiceClient setParametersClient_;
@@ -148,6 +149,7 @@ namespace meta_inter
 
         //Global Plan vizualisation
         visualization_msgs::Marker global_plan_;
+        visualization_msgs::Marker path_marker_;
 
         void reconfigure(meta_inter::MetaInterConfig &config, uint32_t level);
         void semanticCallback(const pedsim_msgs::AgentStates::ConstPtr& message);

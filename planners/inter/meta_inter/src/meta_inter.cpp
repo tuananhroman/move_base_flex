@@ -20,6 +20,7 @@
 #include <dynamic_reconfigure/Config.h>
 #include <angles/angles.h>
 #include <visualization_msgs/Marker.h> // Added for different colors of intermediate Planners
+#include <nav_msgs/Odometry.h>
 
 
 
@@ -36,11 +37,8 @@ namespace meta_inter
     uint32_t MetaInter::makePlan(const geometry_msgs::PoseStamped &start, const geometry_msgs::PoseStamped &goal,
                                    std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
     {
-        // Roboterposition erhalten
-        geometry_msgs::PoseStamped robot_pose = start;
 
-        // Roboterposition zum globalen Vektor hinzufügen
-        robot_positions.push_back(robot_pose);
+
 
         boost::unique_lock<boost::mutex> plan_lock(plan_mtx_);
         boost::unique_lock<boost::mutex> speed_lock(speed_mtx_);
@@ -58,15 +56,7 @@ namespace meta_inter
 
 
 
-        // Marker for global plan
-        visualization_msgs::Marker global_plan_marker;
-        global_plan_marker.header.frame_id = "map"; 
-        global_plan_marker.header.stamp = ros::Time::now();
-        global_plan_marker.ns = "global_plan";
-        global_plan_marker.id = 0;
-        global_plan_marker.type = visualization_msgs::Marker::LINE_STRIP;
-        global_plan_marker.action = visualization_msgs::Marker::ADD;
-        global_plan_marker.scale.x = 0.1; 
+   
 
         for (const auto &simAgentInfo : simAgentInfos)
         {
@@ -250,11 +240,12 @@ namespace meta_inter
 
         // Subscribe to the global plan topic
         global_plan_sub_ = nh_.subscribe("/jackal/move_base_flex/TebLocalPlannerROS/global_plan", 1, &MetaInter::globalPlanCallback, this);
+        odom_sub = nh_.subscribe("/jackal/odom", 10, &MetaInter::odomCallback,this);
 
         // Publisher for modified global plan with color changes
         global_plan_pub_ = nh_.advertise<visualization_msgs::Marker>("global_plan_color", 1);
 
-        marker_publisher_ = nh_.advertise<visualization_msgs::Marker>("robot_path_marker", 1);
+        path_pub_ = nh_.advertise<visualization_msgs::Marker>("robot_path", 10);
 
         
     }
@@ -374,35 +365,72 @@ namespace meta_inter
         global_plan_pub_.publish(modified_plan);
     }
 
-    void MetaInter::draw_robot_path()
+
+
+
+    void MetaInter::odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
     {
-        visualization_msgs::Marker marker;
-        marker.header.frame_id = "map"; // Rahmen des Markers einstellen 
-        marker.header.stamp = ros::Time::now();
-        marker.ns = "robot_path";
-        marker.action = visualization_msgs::Marker::ADD;
-        marker.type = visualization_msgs::Marker::LINE_STRIP;
-        marker.scale.x = 0.1; // Breite des Pfadmarkers einstellen
 
-        // Farbe des Pfadmarkers einstellen
-        marker.color.a = 1.0; // Alpha-Wert (Transparenz) einstellen
-        marker.color.r = 1.0; // Farbe des Markers (rot)
-        marker.color.g = 0.0; // Farbe des Markers (grün)
-        marker.color.b = 0.0; // Farbe des Markers (blau)
 
-        // Pfadpunkte aus den gespeicherten Roboterpositionen hinzufügen
-        for (const auto &pose : robot_positions)
+         // Initialisierung der Marker-Nachricht für den Pfad
+        path_marker_.header.frame_id = "map";
+        path_marker_.ns = "robot_path";
+        path_marker_.id = 0;
+        path_marker_.type = visualization_msgs::Marker::LINE_STRIP;
+        path_marker_.action = visualization_msgs::Marker::ADD;
+        path_marker_.pose.orientation.w = 1.0;
+        path_marker_.scale.x = 0.05; // Dicke der Linie
+ 
+        
+               
+        // Extrahieren der Position des Roboters aus der Odometrie
+        geometry_msgs::PointStamped robot_position;
+        robot_position.header = msg->header;
+        robot_position.point = msg->pose.pose.position;
+
+        // Hinzufügen der Position des Roboters zum Pfad
+        path_marker_.points.push_back(robot_position.point);
+
+
+
+
+        // Set color based on intermediate planner
+        if (current_inter_ == "aggressive")
         {
-            geometry_msgs::Point point;
-            point.x = pose.pose.position.x;
-            point.y = pose.pose.position.y;
-            point.z = pose.pose.position.z;
-            marker.points.push_back(point);
+            path_marker_.color.r = 1.0;
+            path_marker_.color.g = 0.0;
+            path_marker_.color.b = 0.0;
+            path_marker_.color.a = 1.0; // Fully opaque red
+        }
+        else if (current_inter_ == "sideways")
+        {
+            path_marker_.color.r = 0.0;
+            path_marker_.color.g = 1.0;
+            path_marker_.color.b = 0.0;
+            path_marker_.color.a = 1.0; // Fully opaque green
+        }
+        else if (current_inter_ == "polite")
+        {
+            path_marker_.color.r = 0.0;
+            path_marker_.color.g = 0.0;
+            path_marker_.color.b = 1.0;
+            path_marker_.color.a = 1.0; // Fully opaque blue
+        }
+        else
+        {
+            ROS_WARN("Unknown intermediate planner: %s", current_inter_.c_str());
+            // Use default color if intermediate planner is unknown
+            path_marker_.color.r = 1.0;
+            path_marker_.color.g = 1.0;
+            path_marker_.color.b = 1.0;
+            path_marker_.color.a = 1.0; // Fully opaque white
         }
 
-        // Marker veröffentlichen
-        marker_publisher_.publish(marker);
+        // Veröffentlichen der aktualisierten Pfadnachricht
+        path_pub_.publish(path_marker_);
     }
+
+
 
 
 }
