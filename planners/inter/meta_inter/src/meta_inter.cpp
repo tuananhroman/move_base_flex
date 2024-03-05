@@ -38,7 +38,12 @@ namespace meta_inter
                                    std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
     {
 
-
+        if (start_.header.stamp.sec == 0 && start_.header.stamp.nsec == 0)
+            {
+                //save start position for the markers in OdomCallback function
+                start_ = start;
+            }
+        goal_=goal;
 
         boost::unique_lock<boost::mutex> plan_lock(plan_mtx_);
         boost::unique_lock<boost::mutex> speed_lock(speed_mtx_);
@@ -368,62 +373,83 @@ namespace meta_inter
 
 
 
-    void MetaInter::odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
-    {
+ void MetaInter::odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
+{
 
-        double linear_velocity = std::sqrt(std::pow(msg->twist.twist.linear.x, 2) +
-                                       std::pow(msg->twist.twist.linear.y, 2) +
-                                       std::pow(msg->twist.twist.linear.z, 2));
+    // Storing the current position of the robot
+    geometry_msgs::Point robot_position;
+    robot_position.x = msg->pose.pose.position.x;
+    robot_position.y = msg->pose.pose.position.y;
+    robot_position.z = msg->pose.pose.position.z;      
 
+    // Calculating linear velocity of the robot
+    double linear_velocity = std::sqrt(std::pow(msg->twist.twist.linear.x, 2) +
+                                   std::pow(msg->twist.twist.linear.y, 2) +
+                                   std::pow(msg->twist.twist.linear.z, 2));
 
-        if (linear_velocity > 0.1)
-            {                                   
-         // Initialisierung der Marker-Nachricht für den Pfad
-        path_marker_.header.frame_id = "map";
-        path_marker_.ns = "robot_path";
-        path_marker_.id = 0;
-        path_marker_.type = visualization_msgs::Marker::LINE_STRIP;
-        path_marker_.action = visualization_msgs::Marker::ADD;
-        //path_marker_.pose.orientation.w = 1.0;
-        path_marker_.scale.x = 0.05; // Dicke der Linie
- 
-        
-               
-        // Extrahieren der Position des Roboters aus der Odometrie
-        geometry_msgs::PointStamped robot_position;
-        robot_position.header = msg->header;
-        robot_position.point = msg->pose.pose.position;
+    // Calculating distance from robot to goal
+    double distance_to_goal = std::sqrt(std::pow(goal_.pose.position.x - robot_position.x, 2) +
+                                        std::pow(goal_.pose.position.y - robot_position.y, 2) +
+                                        std::pow(goal_.pose.position.z - robot_position.z, 2));
 
 
-        // Hinzufügen der Position des Roboters zum Pfad
-        path_marker_.points.push_back(robot_position.point);
+    if (linear_velocity > 0.1 )
+    {                                  
+     // Initializing the marker message for the path
+    path_marker_.header.frame_id = "map";
+    path_marker_.ns = "robot_path";
+    path_marker_.id = 0;
+    path_marker_.type = visualization_msgs::Marker::LINE_STRIP;
+    path_marker_.action = visualization_msgs::Marker::ADD;
+    //path_marker_.pose.orientation.w = 1.0;
+    path_marker_.scale.x = 0.05; // Thickness of the line
 
-        // Farbzuweisung basierend auf dem aktuellen Intermediate Planner
-        std_msgs::ColorRGBA color;
-        if (current_inter_ == "aggressive") {
-            color.r = 1.0;
-            color.g = 0.0;
-            color.b = 0.0;
-        } else if (current_inter_ == "sideways") {
-            color.r = 0.0;
-            color.g = 1.0;
-            color.b = 0.0;
-        } else if (current_inter_ == "polite") {
-            color.r = 0.0;
-            color.g = 0.0;
-            color.b = 1.0;
-        }
-        color.a = 1.0; // Transparenz der Farbe
+    
 
-        // Hinzufügen der Farbe zum Farbvektor für den aktuellen Punkt
-        path_marker_.colors.push_back(color);
+    // Extracting robot position from odometry
+    geometry_msgs::PointStamped robot_position;
+    robot_position.header = msg->header;
+    robot_position.point = msg->pose.pose.position;
 
 
+    // Adding robot position to the path
+    path_marker_.points.push_back(robot_position.point);
 
-        // Veröffentlichen der aktualisierten Pfadnachricht
-        path_pub_.publish(path_marker_);
+    // Assigning color based on the current intermediate planner
+    std_msgs::ColorRGBA color;
+    if (current_inter_ == "aggressive") {
+        color.r = 1.0;
+        color.g = 0.0;
+        color.b = 0.0;
+    } else if (current_inter_ == "sideways") {
+        color.r = 0.0;
+        color.g = 1.0;
+        color.b = 0.0;
+    } else if (current_inter_ == "polite") {
+        color.r = 0.0;
+        color.g = 0.0;
+        color.b = 1.0;
     }
-    }
+    color.a = 1.0; // Transparency of the color
+
+    // Adding color to the color vector for the current point
+    path_marker_.colors.push_back(color);
+
+
+
+    // Publishing the updated path message
+    path_pub_.publish(path_marker_);
+}
+
+if(linear_velocity < 0.1 && new_goal_set_ ==false ) {
+
+    // Clearing the drawn path
+    path_marker_.points.clear();
+    path_marker_.colors.clear();
+    path_pub_.publish(path_marker_);   
+}
+}
+
 
 
 

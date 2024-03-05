@@ -131,6 +131,8 @@ namespace meta_inter
         ros::ServiceClient setInterClient_;
 
         geometry_msgs::PoseStamped temp_goal_;
+        geometry_msgs::PoseStamped goal_;
+        geometry_msgs::PoseStamped start_;
         bool new_goal_set_ = false;
         bool previous_robot_position_initialized_;
         
@@ -156,12 +158,13 @@ namespace meta_inter
         void laserScanCallback(const sensor_msgs::LaserScan::ConstPtr& msg);
         void globalPlanCallback(const nav_msgs::Path::ConstPtr& msg);
         void publishTraveledPath(const std::vector<geometry_msgs::PoseStamped>& traveled_path);
-        //void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& msg);
+        void checkGoalReached();
         void setMaxVelocityThread();
         void selectPlanner(double distance, std::string type, bool activateSideways);
         void odomCallback(const nav_msgs::Odometry::ConstPtr& msg);
         void visualizeRobotPath();
         void draw_robot_path();
+        void clearPath();
        
     };
 }
