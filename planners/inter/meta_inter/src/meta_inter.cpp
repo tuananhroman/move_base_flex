@@ -38,11 +38,11 @@ namespace meta_inter
                                    std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
     {
 
-        if (start_.header.stamp.sec == 0 && start_.header.stamp.nsec == 0)
-            {
+      //  if (start_.header.stamp.sec == 0 && start_.header.stamp.nsec == 0)
+       //     {
                 //save start position for the markers in OdomCallback function
-                start_ = start;
-            }
+              //  start_ = start;
+         //   }
         goal_=goal;
 
         boost::unique_lock<boost::mutex> plan_lock(plan_mtx_);
@@ -387,11 +387,22 @@ namespace meta_inter
                                    std::pow(msg->twist.twist.linear.y, 2) +
                                    std::pow(msg->twist.twist.linear.z, 2));
 
+    
+    start_.pose.position.x =2.879750;
+    start_.pose.position.y=28.922200;
+    start_.pose.position.z=0;
+
     // Calculating distance from robot to goal
     double distance_to_goal = std::sqrt(std::pow(goal_.pose.position.x - robot_position.x, 2) +
                                         std::pow(goal_.pose.position.y - robot_position.y, 2) +
                                         std::pow(goal_.pose.position.z - robot_position.z, 2));
 
+    // Calculating distance from robot to goal
+    double distance_to_start = std::sqrt(std::pow(start_.pose.position.x - robot_position.x, 2) +
+                                        std::pow(start_.pose.position.y - robot_position.y, 2) +
+                                        std::pow(start_.pose.position.z - robot_position.z, 2));
+
+    //ROS_ERROR(" distance to start, %f", distance_to_start);
 
     if (linear_velocity > 0.1 )
     {                                  
@@ -441,7 +452,7 @@ namespace meta_inter
     path_pub_.publish(path_marker_);
 }
 
-if(linear_velocity < 0.1 && new_goal_set_ ==false ) {
+if(distance_to_goal<0.1 || distance_to_start<0.1) {
 
     // Clearing the drawn path
     path_marker_.points.clear();
