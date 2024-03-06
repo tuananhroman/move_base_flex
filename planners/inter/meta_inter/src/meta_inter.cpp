@@ -375,36 +375,35 @@ namespace meta_inter
 
  void MetaInter::odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
 {
+    static nav_msgs::Odometry prev_odom_temp = *msg;
+    
 
-    // Storing the current position of the robot
-    geometry_msgs::Point robot_position;
-    robot_position.x = msg->pose.pose.position.x;
-    robot_position.y = msg->pose.pose.position.y;
-    robot_position.z = msg->pose.pose.position.z;      
+    double dist_diff = std::sqrt(std::pow(msg->pose.pose.position.x - prev_odom_temp.pose.pose.position.x, 2) +
+                                 std::pow(msg->pose.pose.position.y - prev_odom_temp.pose.pose.position.y, 2) +
+                                 std::pow(msg->pose.pose.position.z - prev_odom_temp.pose.pose.position.z, 2));
 
+    
     // Calculating linear velocity of the robot
     double linear_velocity = std::sqrt(std::pow(msg->twist.twist.linear.x, 2) +
                                    std::pow(msg->twist.twist.linear.y, 2) +
                                    std::pow(msg->twist.twist.linear.z, 2));
 
-    
-    start_.pose.position.x =2.879750;
-    start_.pose.position.y=28.922200;
-    start_.pose.position.z=0;
 
-    // Calculating distance from robot to goal
-    double distance_to_goal = std::sqrt(std::pow(goal_.pose.position.x - robot_position.x, 2) +
-                                        std::pow(goal_.pose.position.y - robot_position.y, 2) +
-                                        std::pow(goal_.pose.position.z - robot_position.z, 2));
 
-    // Calculating distance from robot to goal
-    double distance_to_start = std::sqrt(std::pow(start_.pose.position.x - robot_position.x, 2) +
-                                        std::pow(start_.pose.position.y - robot_position.y, 2) +
-                                        std::pow(start_.pose.position.z - robot_position.z, 2));
 
-    //ROS_ERROR(" distance to start, %f", distance_to_start);
+    // Check if the robot did teleport
+    if (dist_diff > 1.0) {
+        // robot teleported , clear graph !
+        path_marker_.points.clear();
+        path_marker_.colors.clear();
+        path_pub_.publish(path_marker_);
+        ROS_ERROR("Robot teleported. Cleared the graph.");
+    }
 
-    if (linear_velocity > 0.1 )
+    ROS_ERROR("Distance difference: %f", dist_diff);
+    prev_odom_temp = *msg;
+
+    if (linear_velocity > 0.1)
     {                                  
      // Initializing the marker message for the path
     path_marker_.header.frame_id = "map";
@@ -452,13 +451,6 @@ namespace meta_inter
     path_pub_.publish(path_marker_);
 }
 
-if(distance_to_goal<0.1 || distance_to_start<0.1) {
-
-    // Clearing the drawn path
-    path_marker_.points.clear();
-    path_marker_.colors.clear();
-    path_pub_.publish(path_marker_);   
-}
 }
 
 
