@@ -22,11 +22,6 @@
 #include <visualization_msgs/Marker.h> // Added for different colors of intermediate Planners
 #include <nav_msgs/Odometry.h>
 
-
-
-
-
-
 PLUGINLIB_EXPORT_CLASS(meta_inter::MetaInter, mbf_costmap_core::CostmapInter)
 
 namespace meta_inter
@@ -35,15 +30,15 @@ namespace meta_inter
     // the Inter-Planners: Sideways, Polite and Agressive
 
     uint32_t MetaInter::makePlan(const geometry_msgs::PoseStamped &start, const geometry_msgs::PoseStamped &goal,
-                                   std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
+                                 std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
     {
 
-      //  if (start_.header.stamp.sec == 0 && start_.header.stamp.nsec == 0)
-       //     {
-                //save start position for the markers in OdomCallback function
-              //  start_ = start;
-         //   }
-        goal_=goal;
+        //  if (start_.header.stamp.sec == 0 && start_.header.stamp.nsec == 0)
+        //     {
+        // save start position for the markers in OdomCallback function
+        //  start_ = start;
+        //   }
+        goal_ = goal;
 
         boost::unique_lock<boost::mutex> plan_lock(plan_mtx_);
         boost::unique_lock<boost::mutex> speed_lock(speed_mtx_);
@@ -51,17 +46,17 @@ namespace meta_inter
         double robot_x = start.pose.position.x;
         double robot_y = start.pose.position.y;
         double robot_z = start.pose.position.z;
+        std::vector<double> robotPositionVector = {robot_x, robot_y, robot_z};
         double minDistance = INFINITY;
         bool caution = false;
         bool wall_near = false;
+        double default_padding = (current_inter_ == "polite") ? 0.075 : 0.135;
+        double theta = tf::getYaw(start.pose.orientation);
+        bool activateSideways = inter_util::InterUtil::checkObstacles(robotPositionVector,simAgentInfos, theta, (sideways_range_ + default_padding), temp_goal_distance_, robot_radius_, detectedRanges, detectedAngles, false, false);
         ROS_WARN("%s is our current inter", current_inter_.c_str());
 
         std::vector<double> distances;
         current_inter_ = "aggressive";
-
-
-
-   
 
         for (const auto &simAgentInfo : simAgentInfos)
         {
@@ -70,21 +65,17 @@ namespace meta_inter
             double distance = std::sqrt(std::pow(point.x - robot_x, 2) + std::pow(point.y - robot_y, 2)) + std::pow(point.z - robot_z, 2);
             minDistance = std::min(minDistance, distance);
             distances.push_back(distance);
-            double theta = tf::getYaw(start.pose.orientation);
-            //works for polite and sideways, if there are more options, it needs adjustment
-            //padding is used on top of robot size to account for minor calculation errors to avoid static obstacles
-            double default_padding = (current_inter_ == "polite") ? 0.075 : 0.135;
-            //detects if there are walls in the sideways_range and add padding here too to account for error
-            bool activateSideways = inter_util::InterUtil::checkStaticObjects(distance, theta, (sideways_range_+default_padding), temp_goal_distance_, robot_radius_, detectedRanges, detectedAngles);
-
+            // works for polite and sideways, if there are more options, it needs adjustment
+            // padding is used on top of robot size to account for minor calculation errors to avoid static obstacles
+            // detects if there are walls in the sideways_range and add padding here too to account for error
             selectPlanner(distance, agentType, activateSideways);
-            if(current_inter_ != "aggressive")
+            if (current_inter_ != "aggressive")
             {
                 // calculates if ped is behind the robot to determine if he can continue to drive or set temp_goal
                 double angle_to_point = atan2(point.x - robot_x, point.y - robot_y);
                 double angle_diff = angles::shortest_angular_distance(theta, angle_to_point);
 
-                wall_near = inter_util::InterUtil::checkStaticObjects(distance, theta, default_padding, temp_goal_distance_, robot_radius_, detectedRanges, detectedAngles);
+                wall_near = inter_util::InterUtil::checkObstacles(robotPositionVector,simAgentInfos, theta, default_padding, temp_goal_distance_, robot_radius_, detectedRanges, detectedAngles, true, true);
 
                 // check speed restriction
                 caution |= (distance <= caution_detection_range_);
@@ -127,27 +118,26 @@ namespace meta_inter
         else
             plan = plan_;
 
-
         return 0;
     }
 
-
-
-    void MetaInter::selectPlanner(double distance, std::string type, bool activateSideways) 
+    void MetaInter::selectPlanner(double distance, std::string type, bool activateSideways)
     {
-        //sorted by priority
-        if(current_inter_ == "polite") {
+        // sorted by priority
+        if (current_inter_ == "polite")
+        {
             return;
         }
-        if(distance <= polite_range_ && type == "human/elder") {
+        if (distance <= polite_range_ && type == "human/elder")
+        {
             current_inter_ = "polite";
             return;
         }
-        if(activateSideways) {
+        if (activateSideways)
+        {
             current_inter_ = "sideways";
             return;
         }
-
     }
 
     bool MetaInter::setPlan(const std::vector<geometry_msgs::PoseStamped> &plan)
@@ -208,7 +198,8 @@ namespace meta_inter
                 ROS_ERROR("Failed to get parameter %s/move_base_flex/local_costmap/obstacles_layer/helios_points/topic", node_namespace_.c_str());
             }
         }
-        if (!nh_.getParam("/robot_radius", robot_radius_)){
+        if (!nh_.getParam("/robot_radius", robot_radius_))
+        {
             ROS_ERROR("Failed to get parameter %s/local_planner", node_namespace_.c_str());
         }
         if (!scan_topic_name.empty())
@@ -245,14 +236,12 @@ namespace meta_inter
 
         // Subscribe to the global plan topic
         global_plan_sub_ = nh_.subscribe("/jackal/move_base_flex/TebLocalPlannerROS/global_plan", 1, &MetaInter::globalPlanCallback, this);
-        odom_sub = nh_.subscribe("/jackal/odom", 1, &MetaInter::odomCallback,this);
+        odom_sub = nh_.subscribe("/jackal/odom", 1, &MetaInter::odomCallback, this);
 
         // Publisher for modified global plan with color changes
         global_plan_pub_ = nh_.advertise<visualization_msgs::Marker>("global_plan_color", 1);
 
         path_pub_ = nh_.advertise<visualization_msgs::Marker>("robot_path_color", 1);
-
-        
     }
 
     void MetaInter::reconfigure(meta_inter::MetaInterConfig &config, uint32_t level)
@@ -270,7 +259,6 @@ namespace meta_inter
         polite_range_ = config.polite_range;
         sideways_range_ = config.sideways_range;
         changed_max_vel_x_param_ = (cautious_speed_ * max_vel_x_param_);
-
     }
 
     void MetaInter::setMaxVelocityThread()
@@ -311,8 +299,7 @@ namespace meta_inter
         }
     }
 
-
-    void MetaInter::globalPlanCallback(const nav_msgs::Path::ConstPtr& msg)
+    void MetaInter::globalPlanCallback(const nav_msgs::Path::ConstPtr &msg)
     {
         // Modify the global plan and change the color based on intermediate planner
         visualization_msgs::Marker modified_plan;
@@ -357,7 +344,7 @@ namespace meta_inter
         }
 
         // Convert PoseStamped messages to Point messages
-        for (const auto& pose_stamped : msg->poses)
+        for (const auto &pose_stamped : msg->poses)
         {
             geometry_msgs::Point point;
             point.x = pose_stamped.pose.position.x;
@@ -370,99 +357,92 @@ namespace meta_inter
         global_plan_pub_.publish(modified_plan);
     }
 
+    void MetaInter::odomCallback(const nav_msgs::Odometry::ConstPtr &msg)
+    {
 
+        // Storing the current position of the robot
+        geometry_msgs::Point robot_position;
+        robot_position.x = msg->pose.pose.position.x;
+        robot_position.y = msg->pose.pose.position.y;
+        robot_position.z = msg->pose.pose.position.z;
 
+        // Calculating linear velocity of the robot
+        double linear_velocity = std::sqrt(std::pow(msg->twist.twist.linear.x, 2) +
+                                           std::pow(msg->twist.twist.linear.y, 2) +
+                                           std::pow(msg->twist.twist.linear.z, 2));
 
- void MetaInter::odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
-{
+        start_.pose.position.x = 2.879750;
+        start_.pose.position.y = 28.922200;
+        start_.pose.position.z = 0;
 
-    // Storing the current position of the robot
-    geometry_msgs::Point robot_position;
-    robot_position.x = msg->pose.pose.position.x;
-    robot_position.y = msg->pose.pose.position.y;
-    robot_position.z = msg->pose.pose.position.z;      
+        // Calculating distance from robot to goal
+        double distance_to_goal = std::sqrt(std::pow(goal_.pose.position.x - robot_position.x, 2) +
+                                            std::pow(goal_.pose.position.y - robot_position.y, 2) +
+                                            std::pow(goal_.pose.position.z - robot_position.z, 2));
 
-    // Calculating linear velocity of the robot
-    double linear_velocity = std::sqrt(std::pow(msg->twist.twist.linear.x, 2) +
-                                   std::pow(msg->twist.twist.linear.y, 2) +
-                                   std::pow(msg->twist.twist.linear.z, 2));
+        // Calculating distance from robot to goal
+        double distance_to_start = std::sqrt(std::pow(start_.pose.position.x - robot_position.x, 2) +
+                                             std::pow(start_.pose.position.y - robot_position.y, 2) +
+                                             std::pow(start_.pose.position.z - robot_position.z, 2));
 
-    
-    start_.pose.position.x =2.879750;
-    start_.pose.position.y=28.922200;
-    start_.pose.position.z=0;
+        // ROS_ERROR(" distance to start, %f", distance_to_start);
 
-    // Calculating distance from robot to goal
-    double distance_to_goal = std::sqrt(std::pow(goal_.pose.position.x - robot_position.x, 2) +
-                                        std::pow(goal_.pose.position.y - robot_position.y, 2) +
-                                        std::pow(goal_.pose.position.z - robot_position.z, 2));
+        if (linear_velocity > 0.1)
+        {
+            // Initializing the marker message for the path
+            path_marker_.header.frame_id = "map";
+            path_marker_.ns = "robot_path";
+            path_marker_.id = 0;
+            path_marker_.type = visualization_msgs::Marker::LINE_STRIP;
+            path_marker_.action = visualization_msgs::Marker::ADD;
+            // path_marker_.pose.orientation.w = 1.0;
+            path_marker_.scale.x = 0.05; // Thickness of the line
 
-    // Calculating distance from robot to goal
-    double distance_to_start = std::sqrt(std::pow(start_.pose.position.x - robot_position.x, 2) +
-                                        std::pow(start_.pose.position.y - robot_position.y, 2) +
-                                        std::pow(start_.pose.position.z - robot_position.z, 2));
+            // Extracting robot position from odometry
+            geometry_msgs::PointStamped robot_position;
+            robot_position.header = msg->header;
+            robot_position.point = msg->pose.pose.position;
 
-    //ROS_ERROR(" distance to start, %f", distance_to_start);
+            // Adding robot position to the path
+            path_marker_.points.push_back(robot_position.point);
 
-    if (linear_velocity > 0.1 )
-    {                                  
-     // Initializing the marker message for the path
-    path_marker_.header.frame_id = "map";
-    path_marker_.ns = "robot_path";
-    path_marker_.id = 0;
-    path_marker_.type = visualization_msgs::Marker::LINE_STRIP;
-    path_marker_.action = visualization_msgs::Marker::ADD;
-    //path_marker_.pose.orientation.w = 1.0;
-    path_marker_.scale.x = 0.05; // Thickness of the line
+            // Assigning color based on the current intermediate planner
+            std_msgs::ColorRGBA color;
+            if (current_inter_ == "aggressive")
+            {
+                color.r = 1.0;
+                color.g = 0.0;
+                color.b = 0.0;
+            }
+            else if (current_inter_ == "sideways")
+            {
+                color.r = 0.0;
+                color.g = 1.0;
+                color.b = 0.0;
+            }
+            else if (current_inter_ == "polite")
+            {
+                color.r = 0.0;
+                color.g = 0.0;
+                color.b = 1.0;
+            }
+            color.a = 1.0; // Transparency of the color
 
-    
+            // Adding color to the color vector for the current point
+            path_marker_.colors.push_back(color);
 
-    // Extracting robot position from odometry
-    geometry_msgs::PointStamped robot_position;
-    robot_position.header = msg->header;
-    robot_position.point = msg->pose.pose.position;
+            // Publishing the updated path message
+            path_pub_.publish(path_marker_);
+        }
 
+        if (distance_to_goal < 0.1 || distance_to_start < 0.1)
+        {
 
-    // Adding robot position to the path
-    path_marker_.points.push_back(robot_position.point);
-
-    // Assigning color based on the current intermediate planner
-    std_msgs::ColorRGBA color;
-    if (current_inter_ == "aggressive") {
-        color.r = 1.0;
-        color.g = 0.0;
-        color.b = 0.0;
-    } else if (current_inter_ == "sideways") {
-        color.r = 0.0;
-        color.g = 1.0;
-        color.b = 0.0;
-    } else if (current_inter_ == "polite") {
-        color.r = 0.0;
-        color.g = 0.0;
-        color.b = 1.0;
+            // Clearing the drawn path
+            path_marker_.points.clear();
+            path_marker_.colors.clear();
+            path_pub_.publish(path_marker_);
+        }
     }
-    color.a = 1.0; // Transparency of the color
-
-    // Adding color to the color vector for the current point
-    path_marker_.colors.push_back(color);
-
-
-
-    // Publishing the updated path message
-    path_pub_.publish(path_marker_);
-}
-
-if(distance_to_goal<0.1 || distance_to_start<0.1) {
-
-    // Clearing the drawn path
-    path_marker_.points.clear();
-    path_marker_.colors.clear();
-    path_pub_.publish(path_marker_);   
-}
-}
-
-
-
-
 
 }

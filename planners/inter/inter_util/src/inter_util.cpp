@@ -114,27 +114,52 @@ namespace inter_util
         return temp_goal;
     }
 
-    bool InterUtil::checkStaticObjects(double distance, double theta, double padding, double temp_goal_distance, double robot_radius, std::vector<double> detectedRanges, std::vector<double> detectedAngles)
+    bool InterUtil::isPedestrian(double detectedRange, double distance)
+    {
+        return (detectedRange - 1.0) <= distance && distance <= (detectedRange + 1.0);
+    }
+    
+
+    bool InterUtil::checkObstacles(std::vector<double> robotPositionVector, std::vector<SimAgentInfo>& simAgentInfos, double theta, double padding, double temp_goal_distance, double robot_radius, std::vector<double> detectedRanges, std::vector<double> detectedAngles, bool checkPeds, bool checkBehind)
     {
         for (size_t i = 0; i < detectedRanges.size(); ++i)
         {
-            // check if scan could be pedestrian and if it is ignore it
-            bool isPed = (detectedRanges[i] - 0.3 <= distance) && (distance <= detectedRanges[i] + 0.3);
+            // calculate the shortest angle to determine if obstacle is behind us
             double relative_angle = angles::shortest_angular_distance(theta, detectedAngles[i]);
-            // here we check if the scan is:
-            // behind the robot, not a pedestrian and the temp goal would be in or behind the scanned object
-            // to determine if the scan is a static obstacle
-            if ((2 * std::abs(relative_angle) <= M_PI) && (detectedRanges[i] <= temp_goal_distance) && !isPed)
-            {
-                if (detectedRanges[i] <= 2*robot_radius+padding)
-                {
-                    // TODO: Get robot size to determine appropiate value (currently hardcoded 0.6 for jackal)
-                    ROS_INFO("Detected Range[%zu] that should be a static obstacle for Scan Point: %f and here the Angle %f", i, detectedRanges[i], 2 * std::abs(relative_angle));
+            //case if we want to check static and dynamic (pedestrian) obstacles
+            if(checkPeds){
+                // returns true if we detect any obstacle behind us that is nearer than our temp goal and could block us
+                if(checkBehind && (2 * std::abs(relative_angle) <= M_PI) && (detectedRanges[i] <= temp_goal_distance) && (detectedRanges[i] <= 2*robot_radius+padding)){
                     return true;
                 }
+                // returns true if we detect any obstacle in our defined padding range
+                else if (!checkBehind && detectedRanges[i] <= padding) {
+                    return true;
+                }
+            }
+            //case if we want to ignore dynamic (pedestrian) obstacles
+            if(!checkPeds){
+                // check if scan could pe a pedestrian
+                bool isPed = false;
+                for (const auto &simAgentInfo : simAgentInfos)
+                {
+                    geometry_msgs::Point32 point = simAgentInfo.point;
+                    double distance = std::sqrt(std::pow(point.x - robotPositionVector[0], 2) + std::pow(point.y - robotPositionVector[1], 2)) + std::pow(point.z - robotPositionVector[2], 2);
+                    if(isPedestrian(detectedRanges[i], distance)){
+                        isPed = true;
+                    }
+                }
+                // returns true if we detect any static obstacle behind us that is nearer than our temp goal and could block us
+                if(checkBehind && !isPed && (2 * std::abs(relative_angle) <= M_PI) && (detectedRanges[i] <= temp_goal_distance) && (detectedRanges[i] <= 2*robot_radius+padding)){
+                    return true;
+                }
+                // returns true if we detect any static obstacle in our defined padding range
+                else if(!checkBehind && !isPed && detectedRanges[i] <= padding) {
+                    ROS_ERROR("%f and here the padding %f", detectedRanges[i],padding);
+                    return true;
+                } 
             }
         }
         return false;
     }
-
 }

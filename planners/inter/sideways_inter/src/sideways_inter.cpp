@@ -30,9 +30,13 @@ namespace sideways_inter
         double robot_x = start.pose.position.x;
         double robot_y = start.pose.position.y;
         double robot_z = start.pose.position.z;
+        std::vector<double> robotPositionVector = {robot_x, robot_y, robot_z};
 
         bool caution = false;
         bool wall_near = false;
+
+        double theta = tf::getYaw(start.pose.orientation);
+        double default_padding = 0.135;
 
         std::vector<double> distances;
         distances.empty();
@@ -45,11 +49,9 @@ namespace sideways_inter
 
             // calculates if ped is behind the robot to determine if he can continue to drive or set temp_goal
             double angle_to_point = atan2(point.x - robot_x, point.y - robot_y);
-            double theta = tf::getYaw(start.pose.orientation);
-            double default_padding = 0.135;
             double angle_diff = angles::shortest_angular_distance(theta, angle_to_point);
 
-            wall_near = inter_util::InterUtil::checkStaticObjects(distance, theta, default_padding, temp_goal_distance_, robot_radius_, detectedRanges, detectedAngles);
+            wall_near = inter_util::InterUtil::checkObstacles(robotPositionVector,simAgentInfos, theta, default_padding, temp_goal_distance_, robot_radius_, detectedRanges, detectedAngles, true, true);
             // check speed restriction
             caution |= (distance <= caution_detection_range_);
 
