@@ -98,7 +98,7 @@ namespace meta_inter
         {
             if (wall_near)
             {
-                ROS_ERROR("AVOIDED COLLISION WITH OBSTACLE. CONTINUE NORMAL PLANNING");
+                ROS_INFO("AVOIDED COLLISION WITH OBSTACLE. CONTINUE NORMAL PLANNING");
                 new_goal_set_ = false;
                 plan = plan_;
                 return 0;
@@ -377,10 +377,10 @@ namespace meta_inter
             path_marker_.points.clear();
             path_marker_.colors.clear();
             path_pub_.publish(path_marker_);
-            ROS_ERROR("Robot teleported. Cleared the graph.");
+            ROS_INFO("Robot teleported. Cleared the graph.");
         }
 
-        ROS_ERROR("Distance difference: %f", dist_diff);
+        ROS_INFO("Distance difference: %f", dist_diff);
         prev_odom_temp = *msg;
 
         if (linear_velocity > 0.1)
