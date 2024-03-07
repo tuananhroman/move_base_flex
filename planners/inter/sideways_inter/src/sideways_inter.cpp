@@ -30,9 +30,13 @@ namespace sideways_inter
         double robot_x = start.pose.position.x;
         double robot_y = start.pose.position.y;
         double robot_z = start.pose.position.z;
+        std::vector<double> robotPositionVector = {robot_x, robot_y, robot_z};
 
         bool caution = false;
         bool wall_near = false;
+
+        double theta = tf::getYaw(start.pose.orientation);
+        double default_padding = 0.135;
 
         std::vector<double> distances;
         distances.empty();
@@ -45,19 +49,17 @@ namespace sideways_inter
 
             // calculates if ped is behind the robot to determine if he can continue to drive or set temp_goal
             double angle_to_point = atan2(point.x - robot_x, point.y - robot_y);
-            double theta = tf::getYaw(start.pose.orientation);
-            double default_padding = 0.135;
             double angle_diff = angles::shortest_angular_distance(theta, angle_to_point);
 
-            wall_near = inter_util::InterUtil::checkStaticObjects(distance, theta, default_padding, temp_goal_distance_, robot_radius_, detectedRanges, detectedAngles);
+            wall_near = inter_util::InterUtil::checkObstacles(robotPositionVector, simAgentInfos, theta, default_padding, temp_goal_distance_, robot_radius_, detectedRanges, detectedAngles, true, true);
             // check speed restriction
             caution |= (distance <= caution_detection_range_);
 
             // Check if the pedestrian is in range to set temporary goal and move aside
             if ((!new_goal_set_) && (distance <= ped_minimum_distance_) && (2 * std::abs(angle_diff) <= fov_))
             {
-                    temp_goal_ = inter_util::InterUtil::setTempGoal(start, theta, distance, temp_goal_distance_, "sideways");
-                    new_goal_set_ = true;
+                temp_goal_ = inter_util::InterUtil::setTempGoal(start, theta, distance, temp_goal_distance_, "sideways");
+                new_goal_set_ = true;
             }
 
             // nothing else to compute
@@ -74,35 +76,26 @@ namespace sideways_inter
                 ROS_ERROR("AVOIDED COLLISION WITH OBSTACLE. CONTINUE NORMAL PLANNING");
                 new_goal_set_ = false;
                 plan = plan_;
-                
             }
             // calculate distance to temporary goal
-            double distance_to_temp_goal_ = std::sqrt(std::pow(temp_goal_.pose.position.x - robot_x, 2) + std::pow(temp_goal_.pose.position.y - robot_y, 2));     
+            double distance_to_temp_goal_ = std::sqrt(std::pow(temp_goal_.pose.position.x - robot_x, 2) + std::pow(temp_goal_.pose.position.y - robot_y, 2));
             // Clear the existing plan and add temp_goal
             plan.clear();
             plan.push_back(temp_goal_);
-
 
             if (distance_to_temp_goal_ <= temp_goal_tolerance_ || wall_near)
             {
                 // Set speed to 0.0 when reaching temp_goal
                 ROS_ERROR("Reached temp_goal. Resetting goal and setting speed to 0.0 for 5 seconds.");
 
-
                 speed_ = 0.0;
             }
-
-
         }
         else
             plan = plan_;
 
         return 0;
     }
-
-
-
-
 
     bool SidewaysInter::setPlan(const std::vector<geometry_msgs::PoseStamped> &plan)
     {
@@ -140,9 +133,7 @@ namespace sideways_inter
         }
     }
 
-
-
-    void SidewaysInter::resumeDriving(const ros::TimerEvent&)
+    void SidewaysInter::resumeDriving(const ros::TimerEvent &)
     {
         ROS_ERROR("Resumed with the previous speed.");
 
@@ -151,10 +142,7 @@ namespace sideways_inter
 
         // set variable to false for next loop
         new_goal_set_ = false;
-
     }
-
-
 
     void SidewaysInter::initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros, costmap_2d::Costmap2DROS *local_costmap_ros)
     {
@@ -176,7 +164,8 @@ namespace sideways_inter
                 ROS_ERROR("Failed to get parameter %s/move_base_flex/local_costmap/obstacles_layer/helios_points/topic", node_namespace_.c_str());
             }
         }
-        if (!nh_.getParam("/robot_radius", robot_radius_)){
+        if (!nh_.getParam("/robot_radius", robot_radius_))
+        {
             ROS_ERROR("Failed to get parameter %s/local_planner", node_namespace_.c_str());
         }
         if (!scan_topic_name.empty())
@@ -260,20 +249,14 @@ namespace sideways_inter
 
                 // Check if speed is set to zero, then start the timer
                 if (speed_ == 0.0)
-                {               
+                {
                     // Start Timer and configure it as oneshot time (oneshot=true)
-                    wait_timer = nh_.createTimer(ros::Duration(2.5), &SidewaysInter::resumeDriving, this,true);
-                    
+                    wait_timer = nh_.createTimer(ros::Duration(2.5), &SidewaysInter::resumeDriving, this, true);
                 }
             }
-            // Unlock 
+            // Unlock
             lock.unlock();
-           
         }
-        
-
-
-
     }
 
 }

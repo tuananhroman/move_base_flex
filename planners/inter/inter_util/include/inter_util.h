@@ -31,7 +31,8 @@ namespace inter_util
         static void processAgentStates(const pedsim_msgs::AgentStates::ConstPtr& message, std::vector<SimAgentInfo>& simAgentInfos);
         static bool setSpeed(bool caution, double minDistance, double changed_max_vel_x_param_, double max_vel_x_param_, std::string planner);
         static geometry_msgs::PoseStamped setTempGoal(const geometry_msgs::PoseStamped &start, double theta, double distance, double temp_goal_distance, std::string planner);
-        static bool checkStaticObjects(double distance, double theta, double padding, double temp_goal_distance, double robot_radius, std::vector<double> detectedRanges, std::vector<double> detectedAngles);
+        static bool isPedestrian(double detectedRange, double distance);
+        static bool checkObstacles(std::vector<double> robotPositionVector, std::vector<SimAgentInfo>& simAgentInfos, double theta, double padding, double temp_goal_distance, double robot_radius, std::vector<double> detectedRanges, std::vector<double> detectedAngles, bool checkPeds, bool checkBehind);
     };
 }
 

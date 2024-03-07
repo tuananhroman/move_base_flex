@@ -37,16 +37,17 @@ namespace aggressive_inter
         inter_util::InterUtil::checkDanger(dangerPublisher, distances, danger_threshold);
         ROS_WARN("Danger level: %f", inter_util::InterUtil::getDangerLevel(distances));
         ROS_WARN("Distances: ");
-        for (const double& distance : distances) {
+        for (const double &distance : distances)
+        {
             ROS_WARN("%f", distance);
         }
 
         double temp_speed = max_vel_x_param_;
-        
+
         // Check if the closest pedestrian is in range to slow down
         if (minDistance <= slowdown_distance)
         {
-            //speed converges to max_vel_x_param_ at around 5 -> adapt function if necessary
+            // speed converges to max_vel_x_param_ at around 5 -> adapt function if necessary
             temp_speed = inter_util::InterUtil::setSpeed(false, minDistance, 0, max_vel_x_param_, "aggressive");
         }
 
@@ -73,22 +74,23 @@ namespace aggressive_inter
         std::string node_namespace_ = ros::this_node::getNamespace();
         std::string semantic_layer = "/pedsim_simulator/simulated_agents";
         nh_ = ros::NodeHandle("~");
-        dangerPublisher = nh_.advertise<std_msgs::String>("Danger", 10);  
+        dangerPublisher = nh_.advertise<std_msgs::String>("Danger", 10);
         subscriber_ = nh_.subscribe(semantic_layer, 1, &AggressiveInter::semanticCallback, this);
         // get our local planner name
         std::string planner_keyword;
-        if (!nh_.getParam(node_namespace_+"/local_planner", planner_keyword)){
+        if (!nh_.getParam(node_namespace_ + "/local_planner", planner_keyword))
+        {
             ROS_ERROR("Failed to get parameter %s/local_planner", node_namespace_.c_str());
         }
         std::string local_planner_name = inter_util::InterUtil::getLocalPlanner(planner_keyword);
         // get the starting parameter for max_vel_x from our planner
-        if (!nh_.getParam(node_namespace_+"/move_base_flex/"+ local_planner_name +"/max_vel_x", max_vel_x_param_))
+        if (!nh_.getParam(node_namespace_ + "/move_base_flex/" + local_planner_name + "/max_vel_x", max_vel_x_param_))
         {
             ROS_ERROR("Failed to get parameter %s/move_base_flex/%s/max_vel_x", node_namespace_.c_str(), local_planner_name.c_str());
             return;
         }
         // Create service clients for the GetDump and Reconfigure services
-        setParametersClient_ = nh_.serviceClient<dynamic_reconfigure::Reconfigure>(node_namespace_+"/move_base_flex/"+ local_planner_name+"/set_parameters");
+        setParametersClient_ = nh_.serviceClient<dynamic_reconfigure::Reconfigure>(node_namespace_ + "/move_base_flex/" + local_planner_name + "/set_parameters");
         dynamic_reconfigure::Server<aggressive_inter::AggressiveInterConfig> server;
         server.setCallback(boost::bind(&AggressiveInter::reconfigure, this, _1, _2));
 
