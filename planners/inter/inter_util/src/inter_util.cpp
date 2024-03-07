@@ -167,7 +167,7 @@ namespace inter_util
                 // returns true if we detect any static obstacle in our defined padding range
                 else if (!checkBehind && !isPed && detectedRanges[i] <= padding)
                 {
-                    ROS_ERROR("%f and here the padding %f", detectedRanges[i], padding);
+                    ROS_INFO("%f and here the padding %f", detectedRanges[i], padding);
                     return true;
                 }
             }
