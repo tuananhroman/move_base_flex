@@ -359,98 +359,70 @@ namespace meta_inter
 
     void MetaInter::odomCallback(const nav_msgs::Odometry::ConstPtr &msg)
     {
+        static nav_msgs::Odometry prev_odom_temp = *msg;
 
-        // Storing the current position of the robot
-        geometry_msgs::Point robot_position;
-        robot_position.x = msg->pose.pose.position.x;
-        robot_position.y = msg->pose.pose.position.y;
-        robot_position.z = msg->pose.pose.position.z;
+        double dist_diff = std::sqrt(std::pow(msg->pose.pose.position.x - prev_odom_temp.pose.pose.position.x, 2) +
+                                     std::pow(msg->pose.pose.position.y - prev_odom_temp.pose.pose.position.y, 2) +
+                                     std::pow(msg->pose.pose.position.z - prev_odom_temp.pose.pose.position.z, 2));
 
         // Calculating linear velocity of the robot
         double linear_velocity = std::sqrt(std::pow(msg->twist.twist.linear.x, 2) +
                                            std::pow(msg->twist.twist.linear.y, 2) +
                                            std::pow(msg->twist.twist.linear.z, 2));
 
-        void MetaInter::odomCallback(const nav_msgs::Odometry::ConstPtr &msg)
+        // Check if the robot did teleport
+        if (dist_diff > 1.0)
         {
-            static nav_msgs::Odometry prev_odom_temp = *msg;
+            // robot teleported , clear graph !
+            path_marker_.points.clear();
+            path_marker_.colors.clear();
+            path_pub_.publish(path_marker_);
+            ROS_ERROR("Robot teleported. Cleared the graph.");
+        }
 
-            double dist_diff = std::sqrt(std::pow(msg->pose.pose.position.x - prev_odom_temp.pose.pose.position.x, 2) +
-                                         std::pow(msg->pose.pose.position.y - prev_odom_temp.pose.pose.position.y, 2) +
-                                         std::pow(msg->pose.pose.position.z - prev_odom_temp.pose.pose.position.z, 2));
+        ROS_ERROR("Distance difference: %f", dist_diff);
+        prev_odom_temp = *msg;
 
-            // Calculating linear velocity of the robot
-            double linear_velocity = std::sqrt(std::pow(msg->twist.twist.linear.x, 2) +
-                                               std::pow(msg->twist.twist.linear.y, 2) +
-                                               std::pow(msg->twist.twist.linear.z, 2));
+        if (linear_velocity > 0.1)
+        {
+            // Initializing the marker message for the path
+            path_marker_.header.frame_id = "map";
+            path_marker_.ns = "robot_path";
+            path_marker_.id = 0;
+            path_marker_.type = visualization_msgs::Marker::LINE_STRIP;
+            path_marker_.action = visualization_msgs::Marker::ADD;
+            // path_marker_.pose.orientation.w = 1.0;
+            path_marker_.scale.x = 0.05; // Thickness of the line
 
-            // Check if the robot did teleport
-            if (dist_diff > 1.0)
+            // Extracting robot position from odometry
+            geometry_msgs::PointStamped robot_position;
+            robot_position.header = msg->header;
+            robot_position.point = msg->pose.pose.position;
+
+            // Adding robot position to the path
+            path_marker_.points.push_back(robot_position.point);
+
+            // Assigning color based on the current intermediate planner
+            std_msgs::ColorRGBA color;
+            if (current_inter_ == "aggressive")
             {
-                // robot teleported , clear graph !
-                path_marker_.points.clear();
-                path_marker_.colors.clear();
-                path_pub_.publish(path_marker_);
-                ROS_ERROR("Robot teleported. Cleared the graph.");
+                color.r = 1.0;
+                color.g = 0.0;
+                color.b = 0.0;
             }
-
-            ROS_ERROR("Distance difference: %f", dist_diff);
-            prev_odom_temp = *msg;
-
-            if (linear_velocity > 0.1)
+            else if (current_inter_ == "sideways")
             {
-                // Initializing the marker message for the path
-                path_marker_.header.frame_id = "map";
-                path_marker_.ns = "robot_path";
-                path_marker_.id = 0;
-                path_marker_.type = visualization_msgs::Marker::LINE_STRIP;
-                path_marker_.action = visualization_msgs::Marker::ADD;
-                // path_marker_.pose.orientation.w = 1.0;
-                path_marker_.scale.x = 0.05; // Thickness of the line
-
-                // Extracting robot position from odometry
-                geometry_msgs::PointStamped robot_position;
-                robot_position.header = msg->header;
-                robot_position.point = msg->pose.pose.position;
-
-                // Adding robot position to the path
-                path_marker_.points.push_back(robot_position.point);
-
-                // Assigning color based on the current intermediate planner
-                std_msgs::ColorRGBA color;
-                if (current_inter_ == "aggressive")
-                {
-                    color.r = 1.0;
-                    color.g = 0.0;
-                    color.b = 0.0;
-                }
-                else if (current_inter_ == "sideways")
-                {
-                    color.r = 0.0;
-                    color.g = 1.0;
-                    color.b = 0.0;
-                }
-                else if (current_inter_ == "polite")
-                {
-                    color.r = 0.0;
-                    color.g = 0.0;
-                    color.b = 1.0;
-                }
-                color.a = 1.0; // Transparency of the color
-
-                // Adding color to the color vector for the current point
-                path_marker_.colors.push_back(color);
-
-                // Calculating distance from robot to goal
-                double distance_to_goal = std::sqrt(std::pow(goal_.pose.position.x - robot_position.x, 2) +
-                                                    std::pow(goal_.pose.position.y - robot_position.y, 2) +
-                                                    std::pow(goal_.pose.position.z - robot_position.z, 2));
-
-                // Calculating distance from robot to goal
-                double distance_to_start = std::sqrt(std::pow(start_.pose.position.x - robot_position.x, 2) +
-                                                     std::pow(start_.pose.position.y - robot_position.y, 2) +
-                                                     std::pow(start_.pose.position.z - robot_position.z, 2));
+                color.r = 0.0;
+                color.g = 1.0;
+                color.b = 0.0;
             }
+            else if (current_inter_ == "polite")
+            {
+                color.r = 0.0;
+                color.g = 0.0;
+                color.b = 1.0;
+            }
+            color.a = 1.0; // Transparency of the color
 
             // Adding color to the color vector for the current point
             path_marker_.colors.push_back(color);
@@ -458,15 +430,5 @@ namespace meta_inter
             // Publishing the updated path message
             path_pub_.publish(path_marker_);
         }
-
-        if (distance_to_goal < 0.1 || distance_to_start < 0.1)
-        {
-
-            // Clearing the drawn path
-            path_marker_.points.clear();
-            path_marker_.colors.clear();
-            path_pub_.publish(path_marker_);
-        }
     }
-
 }
