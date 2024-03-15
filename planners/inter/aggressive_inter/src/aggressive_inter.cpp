@@ -1,6 +1,6 @@
 #include "../include/aggressive_inter.h"
-#include "../../inter_util/include/inter_util.h"
-#include <pedsim_msgs/AgentStates.h>
+#include <inter_util.h>
+
 #include <thread>
 #include <vector>
 

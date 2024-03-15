@@ -1,5 +1,5 @@
 #include "../include/meta_inter.h"
-#include "../../inter_util/include/inter_util.h"
+#include <inter_util.h>
 
 #include <thread>
 #include <vector>

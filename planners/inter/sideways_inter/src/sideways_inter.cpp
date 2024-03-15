@@ -1,5 +1,5 @@
 #include "../include/sideways_inter.h"
-#include "../../inter_util/include/inter_util.h"
+#include <inter_util.h>
 
 #include <thread>
 #include <std_msgs/Int32.h>
