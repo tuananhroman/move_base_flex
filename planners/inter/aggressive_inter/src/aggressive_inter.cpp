@@ -1,5 +1,5 @@
 #include "../include/aggressive_inter.h"
-#include "../../inter_util/include/inter_util.h"
+#include <inter_util.h>
 
 #include <thread>
 #include <vector>
@@ -27,8 +27,9 @@ namespace aggressive_inter
 
         std::vector<double> distances;
         distances.empty();
-        for (const auto &point : semanticPoints)
+        for (const auto &simAgentInfo : simAgentInfos)
         {
+            geometry_msgs::Point32 point = simAgentInfo.point;
             double distance = std::sqrt(std::pow(point.x - robot_x, 2) + std::pow(point.y - robot_y, 2)) + std::pow(point.z - robot_z, 2);
             minDistance = std::min(minDistance, distance);
             distances.push_back(distance);
@@ -36,17 +37,18 @@ namespace aggressive_inter
         inter_util::InterUtil::checkDanger(dangerPublisher, distances, danger_threshold);
         ROS_WARN("Danger level: %f", inter_util::InterUtil::getDangerLevel(distances));
         ROS_WARN("Distances: ");
-        for (const double& distance : distances) {
+        for (const double &distance : distances)
+        {
             ROS_WARN("%f", distance);
         }
 
         double temp_speed = max_vel_x_param_;
-        
+
         // Check if the closest pedestrian is in range to slow down
         if (minDistance <= slowdown_distance)
         {
-            //speed converges to max_vel_x_param_ at around 5 -> adapt function if necessary
-            temp_speed = max_vel_x_param_ - (max_vel_x_param_ / (1 + std::pow(minDistance, 2)));
+            // speed converges to max_vel_x_param_ at around 5 -> adapt function if necessary
+            temp_speed = inter_util::InterUtil::setSpeed(false, minDistance, 0, max_vel_x_param_, "aggressive");
         }
 
         speed_ = temp_speed;
@@ -60,43 +62,35 @@ namespace aggressive_inter
         return true;
     }
 
-    void AggressiveInter::semanticCallback(const crowdsim_msgs::SemanticData::ConstPtr &message)
+    void AggressiveInter::semanticCallback(const pedsim_msgs::AgentStates::ConstPtr &message)
     {
         boost::unique_lock<boost::mutex> lock(plan_mtx_);
-        
-        semanticPoints.clear();
-        for (const auto &point : message->points)
-        {
-            geometry_msgs::Point32 pedestrianPoint;
-            pedestrianPoint.x = point.location.x;
-            pedestrianPoint.y = point.location.y;
-            pedestrianPoint.z = point.location.z;
-            semanticPoints.push_back(pedestrianPoint);
-        }
+        inter_util::InterUtil::processAgentStates(message, simAgentInfos);
     }
 
     void AggressiveInter::initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros, costmap_2d::Costmap2DROS *local_costmap_ros)
     {
         this->name = name;
         std::string node_namespace_ = ros::this_node::getNamespace();
-        std::string semantic_layer = "/crowdsim_agents/semantic/pedestrian";
+        std::string semantic_layer = "/pedsim_simulator/simulated_agents";
         nh_ = ros::NodeHandle("~");
-        dangerPublisher = nh_.advertise<std_msgs::String>("Danger", 10);  
+        dangerPublisher = nh_.advertise<std_msgs::String>("Danger", 10);
         subscriber_ = nh_.subscribe(semantic_layer, 1, &AggressiveInter::semanticCallback, this);
         // get our local planner name
         std::string planner_keyword;
-        if (!nh_.getParam(node_namespace_+"/local_planner", planner_keyword)){
+        if (!nh_.getParam(node_namespace_ + "/local_planner", planner_keyword))
+        {
             ROS_ERROR("Failed to get parameter %s/local_planner", node_namespace_.c_str());
         }
         std::string local_planner_name = inter_util::InterUtil::getLocalPlanner(planner_keyword);
         // get the starting parameter for max_vel_x from our planner
-        if (!nh_.getParam(node_namespace_+"/move_base_flex/"+ local_planner_name +"/max_vel_x", max_vel_x_param_))
+        if (!nh_.getParam(node_namespace_ + "/move_base_flex/" + local_planner_name + "/max_vel_x", max_vel_x_param_))
         {
             ROS_ERROR("Failed to get parameter %s/move_base_flex/%s/max_vel_x", node_namespace_.c_str(), local_planner_name.c_str());
             return;
         }
         // Create service clients for the GetDump and Reconfigure services
-        setParametersClient_ = nh_.serviceClient<dynamic_reconfigure::Reconfigure>(node_namespace_+"/move_base_flex/"+ local_planner_name+"/set_parameters");
+        setParametersClient_ = nh_.serviceClient<dynamic_reconfigure::Reconfigure>(node_namespace_ + "/move_base_flex/" + local_planner_name + "/set_parameters");
         dynamic_reconfigure::Server<aggressive_inter::AggressiveInterConfig> server;
         server.setCallback(boost::bind(&AggressiveInter::reconfigure, this, _1, _2));
 
