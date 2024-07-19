@@ -1,0 +1,8 @@
+<library path="lib/libspacial_horizon_inter">
+    <class name="spacial_horizon_inter/SpacialHorizonInter" type="spacial_horizon_inter::SpacialHorizonInter"
+        base_class_type="mbf_costmap_core::CostmapInter">
+        <description>
+            An intermediate planner that simply forwards the global plan.
+        </description>
+    </class>
+</library>  
