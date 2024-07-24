@@ -1,5 +1,5 @@
-#ifndef POLITE_INTER_H_
-#define POLITE_INTER_H_
+#ifndef META_INTER_H_
+#define META_INTER_H_
 
 #include <ros/ros.h>
 #include <mbf_costmap_core/costmap_inter.h>
@@ -10,17 +10,20 @@
 #include <sensor_msgs/PointCloud.h>
 #include <sensor_msgs/LaserScan.h>
 #include <sensor_msgs/point_cloud_conversion.h>
-#include <polite_inter/PoliteInterConfig.h>
+#include <meta_inter/MetaInterConfig.h>
+#include <pedsim_msgs/AgentStates.h>
 #include "../../inter_util/include/inter_util.h"
-
 #include <std_msgs/Float64.h>
 #include <thread>
-#include <pedsim_msgs/AgentStates.h>
+#include <nav_msgs/Path.h>
+#include <visualization_msgs/Marker.h>
+#include <geometry_msgs/PoseStamped.h>
+#include <nav_msgs/Odometry.h>
 
-namespace polite_inter
+namespace meta_inter
 {
 
-    class PoliteInter : public mbf_costmap_core::CostmapInter
+    class MetaInter : public mbf_costmap_core::CostmapInter
     {
 
         using mbf_costmap_core::CostmapInter::CostmapInter;
@@ -82,6 +85,8 @@ namespace polite_inter
 
         // storage for setPlan
         std::vector<geometry_msgs::PoseStamped> plan_;
+        // storage for the actual path of the robot 
+        std::vector<geometry_msgs::PoseStamped> robot_positions;
 
         // could be used for nh
         std::string name;
@@ -91,14 +96,19 @@ namespace polite_inter
         ros::NodeHandle nh_;
 
         // default values
-        // change in PoliteInter.cfg to your preference
+        // change in MetaInter.cfg to your preference
         double caution_detection_range_ = 10.0;
         double cautious_speed_ = 0.1;
         double ped_minimum_distance_ = 2.0;
         double temp_goal_distance_ = 2.0;
         double temp_goal_tolerance_ = 0.2;
-        double danger_threshold = 0.6;
         double fov_ = M_PI;
+        double danger_threshold_ = 0.6;
+        std::string current_inter_ = "aggressive";
+        double polite_range_ = 5.0;
+        double sideways_range_ = 8.0;
+
+        //replace this with the actual agent type string if changed
 
         // variables to control the speed
         double speed_;
@@ -108,13 +118,25 @@ namespace polite_inter
         ros::Subscriber subscriber_;
         ros::Subscriber laser_scan_subscriber_;
         ros::Subscriber helios_points_subscriber_;
+        ros::Subscriber  global_plan_sub_;
+        ros::Subscriber odom_sub;
 
-        ros::Publisher dangerPublisher;  
+        ros::Publisher dangerPublisher;
+        ros::Publisher global_plan_pub_;
+        ros::Publisher path_publisher;
+        ros::Publisher path_pub_;
+        ros::Publisher marker_publisher_; 
         
         ros::ServiceClient setParametersClient_;
+        ros::ServiceClient setInterClient_;
 
         geometry_msgs::PoseStamped temp_goal_;
+        geometry_msgs::PoseStamped goal_;
+        geometry_msgs::PoseStamped start_;
         bool new_goal_set_ = false;
+        bool previous_robot_position_initialized_;
+        
+   
         
         double max_vel_x_param_;
         double changed_max_vel_x_param_;
@@ -125,13 +147,26 @@ namespace polite_inter
         std::vector<inter_util::SimAgentInfo> simAgentInfos;
         std::vector<double> detectedRanges;
         std::vector<double> detectedAngles;
+     
 
-        void reconfigure(polite_inter::PoliteInterConfig &config, uint32_t level);
+        //Global Plan vizualisation
+        visualization_msgs::Marker global_plan_;
+        visualization_msgs::Marker path_marker_;
+
+        void reconfigure(meta_inter::MetaInterConfig &config, uint32_t level);
         void semanticCallback(const pedsim_msgs::AgentStates::ConstPtr& message);
         void laserScanCallback(const sensor_msgs::LaserScan::ConstPtr& msg);
-        //void pointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& msg);
+        void globalPlanCallback(const nav_msgs::Path::ConstPtr& msg);
+        void publishTraveledPath(const std::vector<geometry_msgs::PoseStamped>& traveled_path);
+        void checkGoalReached();
         void setMaxVelocityThread();
+        void selectPlanner(double distance, std::string type, bool activateSideways);
+        void odomCallback(const nav_msgs::Odometry::ConstPtr& msg);
+        void visualizeRobotPath();
+        void draw_robot_path();
+        void clearPath();
+       
     };
 }
 
-#endif // POLITE_INTER_H_
+#endif // Meta_INTER_H_

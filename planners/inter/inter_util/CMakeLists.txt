@@ -3,12 +3,15 @@ project(inter_util)
 
 find_package(catkin REQUIRED COMPONENTS
   roscpp
+  pedsim_msgs
 )
 
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES inter_util
+  CATKIN_DEPENDS roscpp pedsim_msgs
 )
+
 
 include_directories(
   include
