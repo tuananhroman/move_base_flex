@@ -11,12 +11,15 @@ uint32_t spacial_horizon_inter::SpacialHorizonInter::makePlan(const geometry_msg
 
     plan = plan_;
 
-    if (!called_make_plan){
-        called_make_plan = true;
-        subgoal_timer = nh_.createTimer(
-            ros::Duration(1/subgoal_publish_rate), &SpacialHorizonInter::updateSubgoalCallback, this
-    );
-    }
+    // if (!called_make_plan){
+    //     called_make_plan = true;
+    //     subgoal_timer = nh_.createTimer(
+    //         ros::Duration(1/update_subgoal_rate), &SpacialHorizonInter::updateSubgoalCallback, this
+    //     );
+    //     global_plan_timer = nh_.createTimer(
+    //         ros::Duration(1/update_globalplan_rate), &SpacialHorizonInter::getGlobalPath, this
+    //     );
+    // }
     
     return 0;
 }
@@ -41,14 +44,13 @@ void spacial_horizon_inter::SpacialHorizonInter::initialize(std::string name, co
     nh_.param("goal_tolerance", goal_tolerance, goal_tolerance);
     nh_.param("planning_horizon", planning_horizon, planning_horizon);
     nh_.param("subgoal_tolerance", subgoal_tolerance, subgoal_tolerance);
-    nh_.param("subgoal_publish_rate", subgoal_publish_rate, subgoal_publish_rate);
+    nh_.param("update_subgoal_rate", update_subgoal_rate, update_subgoal_rate);
+    nh_.param("update_globalplan_rate", update_globalplan_rate, update_globalplan_rate);
 
-    dynamic_reconfigure::Server<spacial_horizon_inter::SpacialHorizonInterConfig> server;
+
+    dynamic_reconfigure::Server<SpacialHorizonInterConfig> server;
     server.setCallback(boost::bind(&SpacialHorizonInter::reconfigure, this, _1, _2));
 
-    // update_global_plan_timer = nh_.createTimer(
-    //     ros::Duration(0.2), &SpacialHorizonInter::getGlobalPath, this
-    // );
     initializeGlobalPlanningService();
 
     std::string odom_topic = ros::this_node::getNamespace() + "/" + BASE_TOPIC_ODOM;
@@ -56,7 +58,9 @@ void spacial_horizon_inter::SpacialHorizonInter::initialize(std::string name, co
     std::string subgoal_topic = ros::this_node::getNamespace() + "/" + BASE_TOPIC_SUBGOAL;
     std::string global_plan_topic = ros::this_node::getNamespace() + "/" + BASE_TOPIC_GLOBAL_PLAN;
 
-    ROS_INFO_STREAM("[Spacial Horizon] Subscribing to topics: " << odom_topic << " " << goal_topic);
+    ROS_INFO_STREAM("[Spacial Horizon] Subscribing to topics: \n"
+                "  Odometry: " << odom_topic << "\n"
+                "  Goal:     " << goal_topic);
 
     sub_odom = nh_.subscribe(odom_topic, 1, &SpacialHorizonInter::odomCallback, this);
     sub_goal = nh_.subscribe(goal_topic, 1, &SpacialHorizonInter::goalCallback, this);
@@ -68,6 +72,14 @@ void spacial_horizon_inter::SpacialHorizonInter::initialize(std::string name, co
     dynamic_recfg_ = boost::make_shared< dynamic_reconfigure::Server<SpacialHorizonInterConfig> >(nh_);
     dynamic_reconfigure::Server<SpacialHorizonInterConfig>::CallbackType cb = boost::bind(&SpacialHorizonInter::reconfigure, this, _1, _2);
     dynamic_recfg_->setCallback(cb);
+
+    subgoal_timer = nh_.createTimer(
+        ros::Duration(1/update_subgoal_rate), &SpacialHorizonInter::updateSubgoalCallback, this
+    );
+    global_plan_timer = nh_.createTimer(
+        ros::Duration(1/update_globalplan_rate), &SpacialHorizonInter::getGlobalPath, this
+    );
+    ROS_INFO("[Spacial Horizon] Initialized Spacial Horizon Inter plugin");
 }
 
 void spacial_horizon_inter::SpacialHorizonInter::reconfigure(spacial_horizon_inter::SpacialHorizonInterConfig &config, uint32_t level)
@@ -75,16 +87,17 @@ void spacial_horizon_inter::SpacialHorizonInter::reconfigure(spacial_horizon_int
     goal_tolerance = config.goal_tolerance;
     planning_horizon = config.planning_horizon;
     subgoal_tolerance = config.subgoal_tolerance;
-    if (subgoal_publish_rate != config.subgoal_publish_rate) {
-        subgoal_publish_rate = config.subgoal_publish_rate;
-        subgoal_timer.setPeriod(ros::Duration(1/subgoal_publish_rate));
+    if (update_subgoal_rate != config.update_subgoal_rate) {
+        update_subgoal_rate = config.update_subgoal_rate;
+        subgoal_timer.setPeriod(ros::Duration(1/update_subgoal_rate));
     }
 }
 
 void spacial_horizon_inter::SpacialHorizonInter::initializeGlobalPlanningService()
 {
     std::string service_name = ros::this_node::getNamespace() + "/" + SERVICE_GLOBAL_PLANNER;
-    ROS_INFO_STREAM("[Spacial Horizon - INIT] Initializing MBF service client with service name: " << service_name.c_str());
+    ROS_INFO_STREAM("[Spacial Horizon - INIT] Initializing MBF service client with service name: \n" 
+                    "" << service_name.c_str());
 
     while (!ros::service::waitForService(service_name, ros::Duration(5.0)))
     {
@@ -94,6 +107,17 @@ void spacial_horizon_inter::SpacialHorizonInter::initializeGlobalPlanningService
     global_planner_srv = nh_.serviceClient<nav_msgs::GetPlan>(service_name, true);
 }
 
+void spacial_horizon_inter::SpacialHorizonInter::publishSubgoal(Eigen::Vector2d &subgoal)
+{
+    geometry_msgs::PoseStamped pose_stamped;
+    pose_stamped.header.stamp = ros::Time::now();
+    pose_stamped.header.frame_id = "map";
+    pose_stamped.pose.position.x = subgoal(0);
+    pose_stamped.pose.position.y = subgoal(1);
+    pose_stamped.pose.position.z = 0.0;
+
+    pub_subgoal.publish(pose_stamped);
+}
 
 void spacial_horizon_inter::SpacialHorizonInter::updateSubgoal()
 {
@@ -103,17 +127,17 @@ void spacial_horizon_inter::SpacialHorizonInter::updateSubgoal()
         ROS_WARN("[SpacialHorizon] No goal received yet");
         return;
     }
-    Eigen::Vector2d subgoal;
-    bool subgoal_success = getSubgoal(subgoal);
+
+    bool subgoal_success = getSubgoal(subgoal_pos);
 
     // if to far away from subgoal -> recompute global path and subgoal
-    double dist_to_subgoal = (odom_pos - subgoal).norm();
+    double dist_to_subgoal = (odom_pos - subgoal_pos).norm();
     if (dist_to_subgoal > planning_horizon + 1.0)
     {
         ROS_INFO_STREAM("[Spacial Horizon]: Too far away from subgoal! Recomputing global path: " 
                         << end_pos << " " << odom_pos);
         getGlobalPath();
-        subgoal_success = getSubgoal(subgoal);
+        subgoal_success = getSubgoal(subgoal_pos);
     }
 
     if (!subgoal_success)
@@ -122,16 +146,7 @@ void spacial_horizon_inter::SpacialHorizonInter::updateSubgoal()
         return;
     }
 
-    geometry_msgs::PoseStamped pose_stamped;
-    pose_stamped.header.stamp = ros::Time::now();
-    pose_stamped.header.frame_id = "map";
-    pose_stamped.pose.position.x = subgoal(0);
-    pose_stamped.pose.position.y = subgoal(1);
-    pose_stamped.pose.position.z = 0.0;
-
-    ROS_INFO_STREAM("[Spacial Horizon] Publishing new subgoal");
-
-    pub_subgoal.publish(pose_stamped);
+    publishSubgoal(subgoal_pos);
 }
 
 
@@ -187,6 +202,10 @@ bool spacial_horizon_inter::SpacialHorizonInter::getSubgoal(Eigen::Vector2d &sub
     }
 
     return false;
+}
+
+void spacial_horizon_inter::SpacialHorizonInter::getGlobalPath(const ros::TimerEvent &e) {
+    getGlobalPath();
 }
 
 /* Get global plan from move_base */
@@ -252,10 +271,30 @@ void spacial_horizon_inter::SpacialHorizonInter::odomCallback(const nav_msgs::Od
     odom_pos = Eigen::Vector2d(msg->pose.pose.position.x, msg->pose.pose.position.y);
     odom_vel = Eigen::Vector2d(msg->twist.twist.linear.x, msg->twist.twist.linear.y);
     has_odom = true;
+
+    ROS_INFO_STREAM("[SpacialHorizon - odomCallback] Received odom: " << odom_pos(0) << " " << odom_pos(1));
+
+    // check if subgoal is reached
+    if (has_goal && subgoal_pos.norm() > 0)
+    {
+        if ((odom_pos - subgoal_pos).norm() <= subgoal_tolerance && subgoal_pos != end_pos)
+        {
+            ROS_WARN("[SpacialHorizon - odomCallback] Reached subgoal. Recomputing subgoal.");
+            getGlobalPath();
+            getSubgoal(subgoal_pos);
+            publishSubgoal(subgoal_pos);
+        }
+    }
 }
 
 void spacial_horizon_inter::SpacialHorizonInter::goalCallback(const geometry_msgs::PoseStampedPtr &msg)
 {
+    ROS_INFO_STREAM("[SpacialHorizon - goalCallback] Received goal: " << msg->pose.position.x << " " << msg->pose.position.y);
+
     end_pos = Eigen::Vector2d(msg->pose.position.x, msg->pose.position.y);
     has_goal = true;
+
+    getGlobalPath();
+    getSubgoal(subgoal_pos);
+    publishSubgoal(subgoal_pos);
 }

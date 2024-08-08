@@ -23,7 +23,7 @@ namespace inter_util
             {"mpc", "MpcLocalPlannerROS"},
             {"dwa", "DwaLocalPlannerROS"},
             {"cohan", "HATebLocalPlannerROS"},
-            {"rosnav", "TebLocalPlannerROS"},
+            {"rosnav", "RosnavLocalPlanner"},
             {"dragon", "DwaLocalPlannerROS"},
             {"applr", "TrajectoryPlannerROS"},
             {"lflh", "TrajectoryPlannerROS"},

@@ -20,7 +20,7 @@
 
 #define BASE_TOPIC_GOAL "move_base_simple/goal"
 #define BASE_TOPIC_ODOM "odom"
-#define BASE_TOPIC_SUBGOAL "current_subgoal"
+#define BASE_TOPIC_SUBGOAL "subgoal"
 #define BASE_TOPIC_GLOBAL_PLAN "global_plan"
 #define SERVICE_GLOBAL_PLANNER "move_base_flex/NavfnROS/make_plan"
 
@@ -97,16 +97,17 @@ namespace spacial_horizon_inter
         // service
         ros::ServiceClient global_planner_srv;
         // timer
-        ros::Timer subgoal_timer, update_global_plan_timer;
+        ros::Timer subgoal_timer, global_plan_timer;
 
         // dynamic reconfigure params
         double goal_tolerance = 0.3;
         double planning_horizon = 5.0;
-        double subgoal_tolerance = 0.5;
-        double subgoal_publish_rate = 5.0;
+        double subgoal_tolerance = 1.0;
+        double update_subgoal_rate = 0.02;
+        double update_globalplan_rate = 0.02;
 
         // vector of goal and odom
-        Eigen::Vector2d end_pos, odom_pos, odom_vel;
+        Eigen::Vector2d subgoal_pos, end_pos, odom_pos, odom_vel;
 
         // flags
         bool called_make_plan = false;
@@ -118,6 +119,7 @@ namespace spacial_horizon_inter
 
         void initializeGlobalPlanningService();
 
+        void publishSubgoal(Eigen::Vector2d &subgoal);
         bool getSubgoal(Eigen::Vector2d &subgoal);
         void updateSubgoal();
         void updateSubgoalCallback(const ros::TimerEvent &e);
