@@ -7,25 +7,33 @@ PLUGINLIB_EXPORT_CLASS(spacial_horizon_inter::SpacialHorizonInter, mbf_costmap_c
 uint32_t spacial_horizon_inter::SpacialHorizonInter::makePlan(const geometry_msgs::PoseStamped &start, const geometry_msgs::PoseStamped &goal,
                                 std::vector<geometry_msgs::PoseStamped> &plan, double &cost, std::string &message)
 {
-    boost::unique_lock<boost::mutex> lock2(plan_mtx_);
-
+    ROS_INFO_STREAM("[SPACIAL HORIZON - makePlan] ENTERING ");
+    boost::unique_lock<boost::mutex> plan_lock(plan_mtx_);
     plan = plan_;
+    bool subgoal_success = updateSubgoal();
 
-    // if (!called_make_plan){
-    //     called_make_plan = true;
-    //     subgoal_timer = nh_.createTimer(
-    //         ros::Duration(1/update_subgoal_rate), &SpacialHorizonInter::updateSubgoalCallback, this
-    //     );
-    //     global_plan_timer = nh_.createTimer(
-    //         ros::Duration(1/update_globalplan_rate), &SpacialHorizonInter::getGlobalPath, this
-    //     );
-    // }
-    
+    if (!subgoal_success)
+    {
+        ROS_WARN("[SpacialHorizon - makePlan] No subgoal found. No global plan received or goal reached!");
+    }
+
+    geometry_msgs::PoseStamped subgoal;
+    subgoal.header.frame_id = "map";
+    subgoal.pose.position.x = subgoal_pos(0);
+    subgoal.pose.position.y = subgoal_pos(1);
+    subgoal.pose.position.z = 0.0;
+    subgoal.pose.orientation.w = 1.0;
+
+    plan.clear();
+    plan.push_back(subgoal);
+
+    ROS_INFO_STREAM("[SPACIAL HORIZON - makePlan] LEAVING");
     return 0;
 }
 
 bool spacial_horizon_inter::SpacialHorizonInter::setPlan(const std::vector<geometry_msgs::PoseStamped> &plan)
 {
+    ROS_INFO_STREAM("[SPACIAL HORIZON - setPlan] ENTERING");
     boost::unique_lock<boost::mutex> lock(plan_mtx_);
     plan_ = plan;
 
@@ -34,12 +42,14 @@ bool spacial_horizon_inter::SpacialHorizonInter::setPlan(const std::vector<geome
     path.header.stamp = ros::Time::now();
     path.poses = plan_;
     pub_global_plan.publish(path);
+    ROS_INFO_STREAM("[SPACIAL HORIZON - setPlan] LEAVING");
     return true;
 }
 
 void spacial_horizon_inter::SpacialHorizonInter::initialize(std::string name, costmap_2d::Costmap2DROS *global_costmap_ros, costmap_2d::Costmap2DROS *local_costmap_ros){
     ros::NodeHandle nh_("~/" + name);
 
+    nh_.param("/train_mode", train_mode, false);
     // load params from node handle
     nh_.param("goal_tolerance", goal_tolerance, goal_tolerance);
     nh_.param("planning_horizon", planning_horizon, planning_horizon);
@@ -73,17 +83,24 @@ void spacial_horizon_inter::SpacialHorizonInter::initialize(std::string name, co
     dynamic_reconfigure::Server<SpacialHorizonInterConfig>::CallbackType cb = boost::bind(&SpacialHorizonInter::reconfigure, this, _1, _2);
     dynamic_recfg_->setCallback(cb);
 
-    subgoal_timer = nh_.createTimer(
-        ros::Duration(1/update_subgoal_rate), &SpacialHorizonInter::updateSubgoalCallback, this
-    );
-    global_plan_timer = nh_.createTimer(
-        ros::Duration(1/update_globalplan_rate), &SpacialHorizonInter::getGlobalPath, this
-    );
+    // subgoal_timer = nh_.createTimer(
+    //     ros::Duration(1/update_subgoal_rate), &SpacialHorizonInter::updateSubgoalCallback, this
+    // );
+    // global_plan_timer = nh_.createTimer(
+    //     ros::Duration(1/update_globalplan_rate), &SpacialHorizonInter::getGlobalPath, this
+    // );
+
+    if (train_mode)
+    {
+        initializeStepWorldService();
+    }
+
     ROS_INFO("[Spacial Horizon] Initialized Spacial Horizon Inter plugin");
 }
 
 void spacial_horizon_inter::SpacialHorizonInter::reconfigure(spacial_horizon_inter::SpacialHorizonInterConfig &config, uint32_t level)
 {
+    ROS_INFO_STREAM("[SPACIAL HORIZON] ENTERING RECONFIGURE");
     goal_tolerance = config.goal_tolerance;
     planning_horizon = config.planning_horizon;
     subgoal_tolerance = config.subgoal_tolerance;
@@ -91,6 +108,7 @@ void spacial_horizon_inter::SpacialHorizonInter::reconfigure(spacial_horizon_int
         update_subgoal_rate = config.update_subgoal_rate;
         subgoal_timer.setPeriod(ros::Duration(1/update_subgoal_rate));
     }
+    ROS_INFO_STREAM("[SPACIAL HORIZON] LEAVING RECONFIGURE");
 }
 
 void spacial_horizon_inter::SpacialHorizonInter::initializeGlobalPlanningService()
@@ -104,7 +122,7 @@ void spacial_horizon_inter::SpacialHorizonInter::initializeGlobalPlanningService
         ROS_INFO("[SpacialHorizon - INIT] Waiting for service %s to become available",
                 service_name.c_str());
     }
-    global_planner_srv = nh_.serviceClient<nav_msgs::GetPlan>(service_name, true);
+    global_planner_srv = nh_.serviceClient<nav_msgs::GetPlan>(service_name, false);
 }
 
 void spacial_horizon_inter::SpacialHorizonInter::publishSubgoal(Eigen::Vector2d &subgoal)
@@ -119,13 +137,13 @@ void spacial_horizon_inter::SpacialHorizonInter::publishSubgoal(Eigen::Vector2d 
     pub_subgoal.publish(pose_stamped);
 }
 
-void spacial_horizon_inter::SpacialHorizonInter::updateSubgoal()
+bool spacial_horizon_inter::SpacialHorizonInter::updateSubgoal()
 {
     ROS_INFO_STREAM("[Spacial Horizon] Updating subgoal");
 
     if (!has_goal) {
         ROS_WARN("[SpacialHorizon] No goal received yet");
-        return;
+        return false;
     }
 
     bool subgoal_success = getSubgoal(subgoal_pos);
@@ -143,10 +161,11 @@ void spacial_horizon_inter::SpacialHorizonInter::updateSubgoal()
     if (!subgoal_success)
     {
         ROS_WARN_STREAM("[Spacial Horizon] No subgoal found. No global plan received or goal reached!");
-        return;
+        return false;
     }
 
-    publishSubgoal(subgoal_pos);
+    // publishSubgoal(subgoal_pos);
+    return true;
 }
 
 
@@ -225,6 +244,36 @@ void spacial_horizon_inter::SpacialHorizonInter::getGlobalPath()
     
 }
 
+void spacial_horizon_inter::SpacialHorizonInter::tryUpdateGlobalplanAndSubgoal(int try_count)
+{
+    if (try_count > 5)
+    {
+        ROS_WARN("[SpacialHorizon] Could not update global plan and subgoal!");
+        return;
+    }
+    if (!has_goal)
+    {
+        ROS_WARN("[SpacialHorizon] No goal received yet!");
+        return;
+    }
+    // getGlobalPath();
+    bool subgoal_success = getSubgoal(subgoal_pos);
+    if (!subgoal_success)
+    {
+        ROS_WARN_STREAM("[Spacial Horizon] Probably got no new goal. No subgoal found!");
+        if (train_mode)
+        {
+            std_srvs::Empty srv;
+            step_world_srv.call(srv);
+        }
+        tryUpdateGlobalplanAndSubgoal(try_count + 1);
+    }
+    else
+    {
+        publishSubgoal(subgoal_pos);
+    }
+}
+
 void spacial_horizon_inter::SpacialHorizonInter::fillPathRequest(nav_msgs::GetPlan::Request &request)
 {
     request.start.header.frame_id = "map";
@@ -244,8 +293,21 @@ void spacial_horizon_inter::SpacialHorizonInter::fillPathRequest(nav_msgs::GetPl
 void spacial_horizon_inter::SpacialHorizonInter::callPlanningService(ros::ServiceClient &serviceClient,
                                          nav_msgs::GetPlan &srv, std::vector<geometry_msgs::PoseStamped> &plan)
 {
+    ROS_INFO_STREAM("[SpacialHorizon - callPlanningService] Calling service " << serviceClient.getService().c_str());
     
-    
+    // Check if service is available
+    if (serviceClient.waitForExistence(ros::Duration(5.0)))
+    {
+        ROS_INFO_STREAM("[SpacialHorizon - callPlanningService] Service " << serviceClient.getService().c_str() << " is available");
+    }
+    else
+    {
+        ROS_ERROR("[SpacialHorizon - callPlanningService] Service %s is not available",
+                  serviceClient.getService().c_str());
+        return;
+    }
+
+    // boost::unique_lock<boost::mutex> lock(plan_mtx_);
     if (serviceClient.call(srv))
     {
         if (srv.response.plan.poses.empty())
@@ -253,10 +315,8 @@ void spacial_horizon_inter::SpacialHorizonInter::callPlanningService(ros::Servic
             ROS_WARN("[SpacialHorizon - GET_PATH] Global plan was empty!");
             return;
         }
-        boost::unique_lock<boost::mutex> lock2(plan_mtx_);
         ROS_INFO_STREAM("[SpacialHorizon - GET_PATH] Received global plan with " << srv.response.plan.poses.size() << " poses");
-        plan = srv.response.plan.poses;
-        pub_global_plan.publish(srv.response.plan);
+        setPlan(srv.response.plan.poses);
     }
     else
     {
@@ -264,6 +324,7 @@ void spacial_horizon_inter::SpacialHorizonInter::callPlanningService(ros::Servic
                   "robot moving?",
                   serviceClient.getService().c_str());
     }
+    ROS_INFO_STREAM("[SpacialHorizon - GET_PATH] Finished calling service " << serviceClient.getService().c_str());
 }
 
 void spacial_horizon_inter::SpacialHorizonInter::odomCallback(const nav_msgs::OdometryConstPtr &msg)
@@ -272,7 +333,7 @@ void spacial_horizon_inter::SpacialHorizonInter::odomCallback(const nav_msgs::Od
     odom_vel = Eigen::Vector2d(msg->twist.twist.linear.x, msg->twist.twist.linear.y);
     has_odom = true;
 
-    ROS_INFO_STREAM("[SpacialHorizon - odomCallback] Received odom: " << odom_pos(0) << " " << odom_pos(1));
+    // ROS_INFO_STREAM("[SpacialHorizon - odomCallback] Received odom: " << odom_pos(0) << " " << odom_pos(1));
 
     // check if subgoal is reached
     if (has_goal && subgoal_pos.norm() > 0)
@@ -280,9 +341,7 @@ void spacial_horizon_inter::SpacialHorizonInter::odomCallback(const nav_msgs::Od
         if ((odom_pos - subgoal_pos).norm() <= subgoal_tolerance && subgoal_pos != end_pos)
         {
             ROS_WARN("[SpacialHorizon - odomCallback] Reached subgoal. Recomputing subgoal.");
-            getGlobalPath();
-            getSubgoal(subgoal_pos);
-            publishSubgoal(subgoal_pos);
+            tryUpdateGlobalplanAndSubgoal();
         }
     }
 }
@@ -294,7 +353,24 @@ void spacial_horizon_inter::SpacialHorizonInter::goalCallback(const geometry_msg
     end_pos = Eigen::Vector2d(msg->pose.position.x, msg->pose.position.y);
     has_goal = true;
 
-    getGlobalPath();
-    getSubgoal(subgoal_pos);
-    publishSubgoal(subgoal_pos);
+    if (called_make_plan && train_mode)
+    {
+        tryUpdateGlobalplanAndSubgoal();
+    }
+}
+
+void spacial_horizon_inter::SpacialHorizonInter::initializeStepWorldService()
+{
+    ROS_INFO_STREAM("[Spacial Horizon - INIT] Initializing StepWorld service client");
+
+    std::string ns = ros::this_node::getNamespace(); 
+    ns = ns.substr(0, ns.find_last_of("/"));
+    std::string service_name = ns + "/" + SERVICE_STEP_WORLD;
+
+    while (!ros::service::waitForService(service_name, ros::Duration(3.0)))
+    {
+        ROS_INFO("[SpacialHorizon - INIT] Waiting for service %s to become available",
+                service_name.c_str());
+    }
+    step_world_srv = nh_.serviceClient<std_srvs::Empty>(service_name, true);
 }

@@ -14,15 +14,17 @@
 #include <nav_msgs/Path.h>
 #include <nav_msgs/GetPlan.h>
 #include <nav_msgs/Odometry.h>
+#include <std_srvs/Empty.h>
 
 #include <dynamic_reconfigure/server.h>
 #include <spacial_horizon_inter/SpacialHorizonInterConfig.h>
 
 #define BASE_TOPIC_GOAL "move_base_simple/goal"
 #define BASE_TOPIC_ODOM "odom"
-#define BASE_TOPIC_SUBGOAL "subgoal"
+#define BASE_TOPIC_SUBGOAL "current_subgoal"
 #define BASE_TOPIC_GLOBAL_PLAN "global_plan"
 #define SERVICE_GLOBAL_PLANNER "move_base_flex/NavfnROS/make_plan"
+#define SERVICE_STEP_WORLD "step_world"
 
 namespace spacial_horizon_inter
 {
@@ -84,18 +86,18 @@ namespace spacial_horizon_inter
     private:
         // storage for setPlan
         std::vector<geometry_msgs::PoseStamped> plan_;
+        std::vector<geometry_msgs::PoseStamped> plan__;
         boost::mutex plan_mtx_;
 
         // could be used for nh
         ros::NodeHandle nh_; // ROS node handle
-        boost::mutex cfg_mtx_;
 
         // publisher
         ros::Publisher pub_subgoal, pub_global_plan;
         // subscriber
         ros::Subscriber sub_goal, sub_odom;
         // service
-        ros::ServiceClient global_planner_srv;
+        ros::ServiceClient global_planner_srv, step_world_srv;
         // timer
         ros::Timer subgoal_timer, global_plan_timer;
 
@@ -110,6 +112,7 @@ namespace spacial_horizon_inter
         Eigen::Vector2d subgoal_pos, end_pos, odom_pos, odom_vel;
 
         // flags
+        bool train_mode = false;
         bool called_make_plan = false;
         bool has_goal = false;
         bool has_odom = false;
@@ -118,10 +121,11 @@ namespace spacial_horizon_inter
         boost::shared_ptr< dynamic_reconfigure::Server<SpacialHorizonInterConfig> > dynamic_recfg_;
 
         void initializeGlobalPlanningService();
+        void initializeStepWorldService();
 
         void publishSubgoal(Eigen::Vector2d &subgoal);
         bool getSubgoal(Eigen::Vector2d &subgoal);
-        void updateSubgoal();
+        bool updateSubgoal();
         void updateSubgoalCallback(const ros::TimerEvent &e);
 
         /* get global plan from move base */
@@ -129,6 +133,7 @@ namespace spacial_horizon_inter
         void getGlobalPath(const ros::TimerEvent &e);
         void fillPathRequest(nav_msgs::GetPlan::Request &request);
         void callPlanningService(ros::ServiceClient &serviceClient, nav_msgs::GetPlan &srv, std::vector<geometry_msgs::PoseStamped> &plan);
+        void tryUpdateGlobalplanAndSubgoal(int try_count = 0);
 
         void odomCallback(const nav_msgs::OdometryConstPtr &msg);
         void goalCallback(const geometry_msgs::PoseStampedPtr &msg);
